@@ -2,7 +2,7 @@ import { mutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
-// Set user's onboarding intent and mark as onboarded
+// Set user's onboarding intent, mark as onboarded, and create Personal workspace if solo
 export const completeOnboarding = mutation({
     args: {
         intent: v.union(v.literal("solo"), v.literal("partner"), v.literal("both")),
@@ -11,6 +11,29 @@ export const completeOnboarding = mutation({
         const userId = await getAuthUserId(ctx);
         if (!userId) {
             throw new Error("Unauthorized");
+        }
+
+        const user = await ctx.db.get(userId);
+        if (!user) throw new Error("User not found");
+
+        if (args.intent === "solo") {
+            const workspaceId = await ctx.db.insert("workspaces", {
+                name: "Personal",
+                type: "personal",
+                currency: "USD",
+            });
+
+            await ctx.db.insert("members", {
+                workspaceId,
+                userId,
+                role: "owner",
+                joinedAt: Date.now(),
+            });
+
+            // Increment workspacesCreated
+            await ctx.db.patch(userId, {
+                workspacesCreated: (user.workspacesCreated || 0) + 1,
+            });
         }
 
         await ctx.db.patch(userId, {
