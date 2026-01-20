@@ -23,7 +23,7 @@ export const createWorkspace = mutation({
 
     // Check workspace limits based on subscription tier
     const maxWorkspaces = user.subscriptionTier === "premium" ? 10 : 2;
-    if (user.workspacesCreated >= maxWorkspaces) {
+    if ((user.workspacesCreated || 0) >= maxWorkspaces) {
       throw new Error(`You've reached the maximum ${maxWorkspaces} workspaces for your ${user.subscriptionTier} plan. Upgrade to premium for up to 10 workspaces.`);
     }
 
@@ -46,7 +46,7 @@ export const createWorkspace = mutation({
 
     // Update user's workspace count
     await ctx.db.patch(user._id, {
-      workspacesCreated: user.workspacesCreated + 1,
+      workspacesCreated: (user.workspacesCreated || 0) + 1,
     });
 
     // Return the created workspace with the member info
@@ -288,7 +288,7 @@ export const getUserSubscription = query({
       status: user.subscriptionStatus,
       workspacesCreated: user.workspacesCreated,
       maxWorkspaces,
-      canCreateWorkspace: user.workspacesCreated < maxWorkspaces,
+      canCreateWorkspace: (user.workspacesCreated || 0) < maxWorkspaces,
       expiresAt: user.subscriptionExpiresAt,
     };
   },
@@ -315,5 +315,86 @@ export const upgradeToPremium = mutation({
     });
 
     return { success: true };
+  },
+});
+// ... existing code ...
+
+export const getWorkspaceStats = query({
+  args: {
+    workspaceId: v.id("workspaces"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Unauthorized");
+
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace) throw new Error("Workspace not found");
+
+    // Get current month date range
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    // Fetch expenses for this month
+    // Note: expenses table has index by_workspaceId. We filter by date manually or compound index if available.
+    // Ideally we'd have index by_workspaceId_and_date. For now, fetch all and filter.
+    const allExpenses = await ctx.db
+      .query("expenses")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+      .collect();
+
+    const monthlyExpenses = allExpenses.filter(e => e.date >= startOfMonth);
+    const totalSpent = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+    // LOGIC FOR JOINT MODE
+    let budgetRemaining = 0;
+    if (workspace.type === "joint") {
+      const target = workspace.monthlyTarget || 0;
+      budgetRemaining = target - totalSpent;
+    }
+
+    // LOGIC FOR SPLIT MODE
+    // Calculate balances. Positive = Owed to me. Negative = I owe.
+    let myBalance = 0;
+
+    if (workspace.type === "split") {
+      const members = await ctx.db
+        .query("members")
+        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+        .collect();
+      const memberIds = members.map(m => m.userId);
+
+      // Initialize balance ledger
+      const ledger: Record<string, number> = {};
+      memberIds.forEach(id => ledger[id] = 0);
+
+      // Process expenses
+      // This is a simplified "50/50" default. 
+      // TODO: Handle customSplitConfig or splitDetails overrides.
+      const splitCount = memberIds.length || 1;
+
+      for (const expense of allExpenses) { // Settlement usually considers ALL time, not just this month
+        // Payer gets credit
+        const payerId = expense.paidBy;
+        if (ledger[payerId] !== undefined) {
+          ledger[payerId] += expense.amount;
+        }
+
+        // Split consumption (Debit)
+        // Default: Equal split
+        const splitAmount = expense.amount / splitCount;
+        memberIds.forEach(id => {
+          ledger[id] -= splitAmount;
+        });
+      }
+
+      myBalance = ledger[userId] || 0;
+    }
+
+    return {
+      totalSpent,
+      budgetRemaining,
+      myBalance, // For Split mode: Amount I am owed (if +) or owe (if -)
+      monthlyTarget: workspace.monthlyTarget || 0,
+    };
   },
 });

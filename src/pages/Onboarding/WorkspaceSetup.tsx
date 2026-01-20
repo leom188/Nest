@@ -4,16 +4,16 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Scale, Wallet } from "lucide-react";
+import { Scale, Wallet, User } from "lucide-react";
 import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
 import { IllustratedCard } from "../../components/onboarding/IllustratedCard";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useAuthStore } from "../../stores/authStore";
 
-type Mode = "split" | "joint";
+type Mode = "personal" | "split" | "joint";
 
-export function ModeSelector() {
+export function WorkspaceSetup() {
     const [selectedMode, setSelectedMode] = useState<Mode | null>(null);
     const [workspaceName, setWorkspaceName] = useState("");
     const [monthlyTarget, setMonthlyTarget] = useState("");
@@ -29,11 +29,19 @@ export function ModeSelector() {
             setWorkspaceName("Household Split");
         } else if (mode === "joint" && !workspaceName) {
             setWorkspaceName("Family Budget");
+        } else if (mode === "personal" && !workspaceName) {
+            setWorkspaceName("Personal");
         }
     };
 
     const handleContinue = async () => {
-        if (!selectedMode || !workspaceName || !user) return;
+        if (!selectedMode || !workspaceName) return;
+
+        if (!user) {
+            console.error("User not found in store");
+            alert("Please wait for login to complete.");
+            return;
+        }
 
         setIsLoading(true);
         try {
@@ -46,8 +54,9 @@ export function ModeSelector() {
             });
 
             navigate("/onboarding/first-win");
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to create workspace:", error);
+            alert(`Failed to create workspace: ${error.message || "Unknown error"}`);
         } finally {
             setIsLoading(false);
         }
@@ -60,21 +69,28 @@ export function ModeSelector() {
         <OnboardingLayout
             step={2}
             totalSteps={3}
-            title="How do you want to share?"
-            subtitle="Choose your preferred way to manage shared expenses"
+            title="Let's set up your space"
+            subtitle="As a Premium member, you can create flexible workspaces."
         >
-            <div className="grid gap-4 md:grid-cols-2 mb-6">
+            <div className="grid gap-4 md:grid-cols-3 mb-6">
+                <IllustratedCard
+                    icon={User}
+                    title="Personal"
+                    description="Just for you. Private and secure."
+                    selected={selectedMode === "personal"}
+                    onClick={() => handleModeSelection("personal")}
+                />
                 <IllustratedCard
                     icon={Scale}
-                    title="The Fair Splitter"
-                    description="Track who paid what and settle up at the end of the month. Perfect for keeping individual finances separate."
+                    title="Fair Split"
+                    description="Track shared expenses and settle up later."
                     selected={selectedMode === "split"}
                     onClick={() => handleModeSelection("split")}
                 />
                 <IllustratedCard
                     icon={Wallet}
-                    title="The Common Pot"
-                    description="Pool money into a shared budget. Great for couples with unified finances."
+                    title="Common Pot"
+                    description="Pool money together for a shared budget."
                     selected={selectedMode === "joint"}
                     onClick={() => handleModeSelection("joint")}
                 />
@@ -84,10 +100,10 @@ export function ModeSelector() {
                 <div className="bg-white rounded-otter shadow-soft p-6 space-y-4">
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">
-                            Name your shared space
+                            Name your workspace
                         </label>
                         <Input
-                            placeholder={selectedMode === "split" ? "e.g., Household Split" : "e.g., Family Budget"}
+                            placeholder="e.g., My Apartment"
                             value={workspaceName}
                             onChange={(e) => setWorkspaceName(e.target.value)}
                             onKeyDown={(e) => {
@@ -119,8 +135,8 @@ export function ModeSelector() {
                     onClick={handleContinue}
                     disabled={!isFormValid || isLoading}
                     className={`px-12 transition-all ${isFormValid && !isLoading
-                            ? "bg-otter-blue hover:bg-otter-blue/90 shadow-lg scale-105"
-                            : ""
+                        ? "bg-otter-blue hover:bg-otter-blue/90 shadow-lg scale-105"
+                        : ""
                         }`}
                 >
                     {isLoading ? "Creating..." : "Create Workspace"}

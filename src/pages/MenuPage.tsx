@@ -16,14 +16,18 @@ const currencies = [
     { code: "MXN", symbol: "$", name: "Mexican Peso" },
 ];
 
+import { useAuthActions } from "@convex-dev/auth/react";
+
 export function MenuPage() {
     const navigate = useNavigate();
     const { user, logout } = useAuthStore();
+    const { signOut } = useAuthActions();
     const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
     const [selectedCurrency, setSelectedCurrency] = useState("USD");
     const [theme, setTheme] = useState<"light" | "dark" | "system">("light");
 
     const handleLogout = async () => {
+        await signOut();
         logout();
         localStorage.removeItem("nest_user");
         navigate("/login");

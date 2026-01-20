@@ -40,6 +40,9 @@ export default defineSchema({
     splitMethod: v.optional(v.union(v.literal("50/50"), v.literal("income"), v.literal("custom"))),
     monthlyTarget: v.optional(v.number()),
     monthlyBudget: v.optional(v.number()),
+    // Store custom split percentages as JSON string ex: {"userId": 60, "userId2": 40}
+    // Using string because record keys must be strings, and ids are specialized
+    customSplitConfig: v.optional(v.string()),
   })
     .index("by_name", ["name"]),
 

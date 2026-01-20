@@ -9,6 +9,8 @@ interface IllustratedCardProps {
     description: string;
     selected?: boolean;
     onClick: () => void;
+    variant?: "default" | "premium";
+    customButtonText?: string;
 }
 
 export function IllustratedCard({
@@ -17,41 +19,69 @@ export function IllustratedCard({
     description,
     selected,
     onClick,
+    variant = "default",
+    customButtonText,
 }: IllustratedCardProps) {
+    const isPremium = variant === "premium";
+
     return (
-        <motion.button
+        <motion.div
             whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onClick}
-            className={`w-full p-6 rounded-otter text-left transition-all ${selected
+            className={`w-full p-6 rounded-otter text-left transition-all relative overflow-hidden flex flex-col h-full ${selected
                     ? "bg-otter-blue text-white shadow-lg ring-4 ring-otter-blue/30"
-                    : "bg-white shadow-soft hover:shadow-lg border border-otter-lavender/20"
+                    : isPremium
+                        ? "bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 shadow-soft"
+                        : "bg-white shadow-soft hover:shadow-lg border border-otter-lavender/20"
                 }`}
         >
+            {isPremium && (
+                <div className="absolute top-4 right-4 flex items-center gap-1 bg-gradient-to-r from-amber-400 to-orange-400 text-white px-2 py-1 rounded-full text-xs font-bold">
+                    <Crown className="w-3 h-3" />
+                    PREMIUM
+                </div>
+            )}
+
             <div
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${selected ? "bg-white/20" : "bg-otter-blue/10"
+                className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${selected ? "bg-white/20" : isPremium ? "bg-amber-100" : "bg-otter-blue/10"
                     }`}
             >
                 <Icon
-                    className={`w-8 h-8 ${selected ? "text-white" : "text-otter-blue"}`}
+                    className={`w-8 h-8 ${selected ? "text-white" : isPremium ? "text-amber-600" : "text-otter-blue"
+                        }`}
                 />
             </div>
+
             <h3
                 className={`text-xl font-bold font-quicksand mb-2 ${selected ? "text-white" : "text-gray-800"
                     }`}
             >
                 {title}
             </h3>
+
             <p
-                className={`font-nunito ${selected ? "text-white/80" : "text-gray-500"
+                className={`font-nunito flex-grow mb-6 ${selected ? "text-white/80" : "text-gray-500"
                     }`}
             >
                 {description}
             </p>
-        </motion.button>
+
+            {customButtonText && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onClick();
+                    }}
+                    className={`w-full py-2 rounded-full font-bold text-sm transition-all shadow-md hover:shadow-lg ${isPremium
+                            ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                            : "bg-otter-blue text-white hover:bg-otter-blue/90"
+                        }`}
+                >
+                    {customButtonText}
+                </button>
+            )}
+        </motion.div>
     );
 }
-
 interface PremiumIllustratedCardProps {
     icon: LucideIcon;
     title: string;

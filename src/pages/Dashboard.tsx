@@ -49,6 +49,10 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace, o
         limit: 50,
     });
 
+    const stats = useQuery(api.workspaces.getWorkspaceStats, {
+        workspaceId,
+    });
+
     if (!workspace) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -61,7 +65,8 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace, o
         (workspace.type === "split" || workspace.type === "joint") &&
         workspace.members.length === 1;
 
-    const totalThisMonth = expenses?.reduce((sum: number, e: any) => sum + e.amount, 0) || 0;
+    // Use stats for totals, defaulting to client-side sum if loading (or just 0)
+    const totalThisMonth = stats?.totalSpent || 0;
     const expenseCount = expenses?.length || 0;
     const budget = user?.monthlyBudget || 0;
     const budgetDiff = budget - totalThisMonth;
@@ -122,6 +127,7 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace, o
                     {workspace.type === "split" && (
                         <SplitHeroContent
                             partnerName={workspace.members.find((m: any) => m.userId !== user?._id)?.user?.name}
+                            myBalance={stats?.myBalance || 0}
                         />
                     )}
 
@@ -247,10 +253,14 @@ function PersonalHeroContent({
 
 function SplitHeroContent({
     partnerName,
+    myBalance = 0,
 }: {
     partnerName?: string;
+    myBalance?: number;
 }) {
-    const owesAmount = 0;
+    // myBalance > 0: I am owed money.
+    // myBalance < 0: I owe money.
+    const owesAmount = myBalance;
 
     return (
         <div className="flex items-start gap-4">

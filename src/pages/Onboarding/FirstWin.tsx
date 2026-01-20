@@ -21,10 +21,10 @@ export function FirstWin() {
 
         setIsLoading(true);
         try {
-            const intent = sessionStorage.getItem("onboarding_intent") as "solo" | "partner" | "both" || "solo";
+            const plan = sessionStorage.getItem("onboarding_plan") as "free" | "premium" || "free";
 
             await completeOnboarding({
-                intent,
+                plan,
             });
 
             // Update local auth store with onboarded state
@@ -34,7 +34,7 @@ export function FirstWin() {
             });
 
             // Clear session storage
-            sessionStorage.removeItem("onboarding_intent");
+            sessionStorage.removeItem("onboarding_plan");
 
             // Navigate to home
             navigate("/", { state: { openExpenseModal } });
