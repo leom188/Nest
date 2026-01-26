@@ -1,6 +1,6 @@
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
+
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const createWorkspace = mutation({
@@ -171,7 +171,7 @@ export const getWorkspaceMembers = internalQuery({
   },
 });
 
-export const getWorkspaceById = internalQuery({
+export const getWorkspaceById = query({
   args: {
     workspaceId: v.id("workspaces"),
   },
@@ -362,15 +362,31 @@ export const getWorkspaceStats = query({
         .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
         .collect();
       const memberIds = members.map(m => m.userId);
+      const ownerMember = members.find(m => m.role === "owner");
+      const ownerId = ownerMember ? ownerMember.userId : "";
 
       // Initialize balance ledger
       const ledger: Record<string, number> = {};
       memberIds.forEach(id => ledger[id] = 0);
 
       // Process expenses
-      // This is a simplified "50/50" default. 
-      // TODO: Handle customSplitConfig or splitDetails overrides.
       const splitCount = memberIds.length || 1;
+
+      // Parse custom config if exists
+      let customOwnerShare = 0.5;
+      let isCustom = false;
+      if (workspace.type === "split" && workspace.splitMethod === "custom" && workspace.customSplitConfig) {
+        try {
+          const config = JSON.parse(workspace.customSplitConfig);
+          // config format: { owner: 60, member: 40 }
+          if (typeof config.owner === "number") {
+            customOwnerShare = config.owner / 100;
+            isCustom = true;
+          }
+        } catch (e) {
+          console.error("Failed to parse split config", e);
+        }
+      }
 
       for (const expense of allExpenses) { // Settlement usually considers ALL time, not just this month
         // Payer gets credit
@@ -380,11 +396,26 @@ export const getWorkspaceStats = query({
         }
 
         // Split consumption (Debit)
-        // Default: Equal split
-        const splitAmount = expense.amount / splitCount;
-        memberIds.forEach(id => {
-          ledger[id] -= splitAmount;
-        });
+        if (isCustom) {
+          memberIds.forEach(id => {
+            let share = 0;
+            if (id === ownerId) {
+              share = customOwnerShare;
+            } else {
+              // Distribute remainder equally among others
+              const remainder = 1 - customOwnerShare;
+              const otherCount = memberIds.length - 1;
+              share = otherCount > 0 ? remainder / otherCount : 0;
+            }
+            ledger[id] -= expense.amount * share;
+          });
+        } else {
+          // Default: Equal split
+          const splitAmount = expense.amount / splitCount;
+          memberIds.forEach(id => {
+            ledger[id] -= splitAmount;
+          });
+        }
       }
 
       myBalance = ledger[userId] || 0;
@@ -396,5 +427,39 @@ export const getWorkspaceStats = query({
       myBalance, // For Split mode: Amount I am owed (if +) or owe (if -)
       monthlyTarget: workspace.monthlyTarget || 0,
     };
+  },
+});
+
+export const updateWorkspaceSettings = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    name: v.optional(v.string()),
+    currency: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
+    // Check permissions (must be member/owner)
+    const membership = await ctx.db
+      .query("members")
+      .withIndex("by_workspaceId_and_userId", (q) =>
+        q.eq("workspaceId", args.workspaceId).eq("userId", userId)
+      )
+      .first();
+
+    if (!membership) {
+      throw new Error("Access denied");
+    }
+
+    // Prepare updates
+    const updates: { name?: string; currency?: string } = {};
+    if (args.name !== undefined) updates.name = args.name;
+    if (args.currency !== undefined) updates.currency = args.currency;
+
+    await ctx.db.patch(args.workspaceId, updates);
+    return { success: true };
   },
 });

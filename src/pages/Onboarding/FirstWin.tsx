@@ -2,44 +2,29 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { motion } from "framer-motion";
+import { useQuery } from "convex/react";
 import { Plus, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { api } from "../../../convex/_generated/api";
 import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
 import { Button } from "../../components/ui/button";
-import { useAuthStore } from "../../stores/authStore";
 
 export function FirstWin() {
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
-    const { user, setUser } = useAuthStore();
-    const completeOnboarding = useMutation(api.onboarding.completeOnboarding);
+    const user = useQuery(api.users.current);
 
     const handleComplete = async (openExpenseModal = false) => {
         if (!user) return;
 
         setIsLoading(true);
         try {
-            const plan = sessionStorage.getItem("onboarding_plan") as "free" | "premium" || "free";
-
-            await completeOnboarding({
-                plan,
-            });
-
-            // Update local auth store with onboarded state
-            setUser({
-                ...user,
-                onboarded: true,
-            });
-
-            // Clear session storage
-            sessionStorage.removeItem("onboarding_plan");
-
             // Navigate to home
             navigate("/", { state: { openExpenseModal } });
         } catch (error) {
-            console.error("Failed to complete onboarding:", error);
+            console.error("Failed to navigate:", error);
+            toast.error("Something went wrong. Please try again.");
         } finally {
             setIsLoading(false);
         }

@@ -1,12 +1,10 @@
 import { internalQuery, internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
-import { Doc, Id } from "./_generated/dataModel";
+import { Doc } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 // Type definitions
-type Invitation = Doc<"invitations">;
-type Workspace = Doc<"workspaces">;
+// Type definitions
 type Member = Doc<"members">;
 
 export const getActiveInvitationForWorkspace = internalQuery({
@@ -146,10 +144,11 @@ export const createInvitation = mutation({
       throw new Error("User not found");
     }
 
-    // Get workspace members using runQuery
-    const members = await ctx.runQuery(internal.workspaces.getWorkspaceMembers, {
-      workspaceId: args.workspaceId,
-    });
+    // Get workspace members
+    const members = await ctx.db
+      .query("members")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+      .collect();
 
     const membership: Member | undefined = members.find((m: Member) => m.userId === user._id);
     if (!membership) {
@@ -160,9 +159,11 @@ export const createInvitation = mutation({
       throw new Error("Only owners and admins can create invitations");
     }
 
-    const existing: Invitation | null = await ctx.runQuery(internal.invitations.getActiveInvitationForWorkspace, {
-      workspaceId: args.workspaceId,
-    });
+    const existing = await ctx.db
+      .query("invitations")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .first();
 
     if (existing) {
       if (existing.expiresAt > Date.now()) {
@@ -172,8 +173,7 @@ export const createInvitation = mutation({
           isExisting: true,
         };
       } else {
-        await ctx.runMutation(internal.invitations.updateInvitationStatus, {
-          invitationId: existing._id,
+        await ctx.db.patch(existing._id, {
           status: "expired",
         });
       }
@@ -189,7 +189,11 @@ export const createInvitation = mutation({
         code += characters.charAt(Math.floor(Math.random() * characters.length));
       }
 
-      const existingCode = await ctx.runQuery(internal.invitations.getInvitationByCode, { code: code! });
+      const existingCode = await ctx.db
+        .query("invitations")
+        .withIndex("by_code", (q) => q.eq("code", code!))
+        .first();
+
       if (!existingCode) {
         isUnique = true;
       }
@@ -197,12 +201,13 @@ export const createInvitation = mutation({
 
     const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
 
-    await ctx.runMutation(internal.invitations.createInvitationRecord, {
+    await ctx.db.insert("invitations", {
       workspaceId: args.workspaceId,
       code: code!,
       role: args.role,
       createdBy: user._id,
       expiresAt,
+      status: "pending",
     });
 
     return {
@@ -227,9 +232,10 @@ export const acceptInvitationExistingUser = mutation({
       throw new Error("User not found");
     }
 
-    const invitation: Invitation | null = await ctx.runQuery(internal.invitations.getInvitationByCode, {
-      code: args.code,
-    });
+    const invitation = await ctx.db
+      .query("invitations")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .first();
 
     if (!invitation) {
       throw new Error("Invalid invitation code");
@@ -240,36 +246,34 @@ export const acceptInvitationExistingUser = mutation({
     }
 
     if (invitation.expiresAt < Date.now()) {
-      await ctx.runMutation(internal.invitations.updateInvitationStatus, {
-        invitationId: invitation._id,
+      await ctx.db.patch(invitation._id, {
         status: "expired",
       });
       throw new Error("This invitation has expired");
     }
 
-    const existingMember = await ctx.runQuery(internal.workspaces.getWorkspaceMembers, {
-      workspaceId: invitation.workspaceId,
-    });
+    const existingMember = await ctx.db
+      .query("members")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", invitation.workspaceId))
+      .collect();
 
     if (existingMember.some((m: Member) => m.userId === user._id)) {
       throw new Error("You are already a member of this workspace");
     }
 
-    await ctx.runMutation(internal.workspaces.addMemberToWorkspace, {
+    await ctx.db.insert("members", {
       workspaceId: invitation.workspaceId,
       userId: user._id,
       role: invitation.role,
+      joinedAt: Date.now(),
     });
 
-    await ctx.runMutation(internal.invitations.updateInvitationStatus, {
-      invitationId: invitation._id,
+    await ctx.db.patch(invitation._id, {
       status: "accepted",
       acceptedBy: user._id,
     });
 
-    const workspace: Workspace | null = await ctx.runQuery(internal.workspaces.getWorkspaceById, {
-      workspaceId: invitation.workspaceId,
-    });
+    const workspace = await ctx.db.get(invitation.workspaceId);
 
     return workspace;
   },

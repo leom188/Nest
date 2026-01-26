@@ -1,29 +1,33 @@
 import { create } from "zustand";
 
-interface Toast {
-    id: string;
-    message: string;
-    actionLabel?: string;
-    onAction?: () => void;
-    type?: "default" | "success" | "error";
+// Define the Expense interface here since it's used in the store
+export interface Expense {
+    _id: string;
+    amount: number;
+    description: string;
+    category: string;
+    date: number;
+    isRecurring?: boolean;
+    payer: { name?: string; email?: string } | null;
+    workspaceId?: string;
 }
 
-interface UiState {
-    toast: Toast | null;
-    showToast: (params: Omit<Toast, "id">) => void;
-    hideToast: () => void;
+interface UIState {
+    isAddExpenseModalOpen: boolean;
+    editingExpense: Expense | null;
+    openAddExpenseModal: (expense?: Expense) => void;
+    closeAddExpenseModal: () => void;
 }
 
-export const useUiStore = create<UiState>((set) => ({
-    toast: null,
-    showToast: (params) => {
-        const id = Math.random().toString(36).substring(7);
-        set({ toast: { ...params, id } });
-
-        // Auto-hide after 5 seconds
-        setTimeout(() => {
-            set((state) => (state.toast?.id === id ? { toast: null } : state));
-        }, 5000);
-    },
-    hideToast: () => set({ toast: null }),
+export const useUIStore = create<UIState>((set) => ({
+    isAddExpenseModalOpen: false,
+    editingExpense: null,
+    openAddExpenseModal: (expense) => set({
+        isAddExpenseModalOpen: true,
+        editingExpense: expense || null
+    }),
+    closeAddExpenseModal: () => set({
+        isAddExpenseModalOpen: false,
+        editingExpense: null
+    }),
 }));

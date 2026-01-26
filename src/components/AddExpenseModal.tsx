@@ -14,12 +14,13 @@ import { Calendar as CalendarComponent } from "./ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
-import { useAuthStore } from "../stores/authStore";
+
 
 interface AddExpenseModalProps {
     workspaceId: Id<"workspaces">;
     isOpen: boolean;
     onClose: () => void;
+    onSuccess?: () => void;
     editingExpense?: {
         _id: string;
         amount: number;
@@ -34,9 +35,10 @@ export function AddExpenseModal({
     workspaceId,
     isOpen,
     onClose,
+    onSuccess,
     editingExpense,
 }: AddExpenseModalProps) {
-    const { user } = useAuthStore();
+    const user = useQuery(api.users.current);
     const [amount, setAmount] = useState("");
     const [description, setDescription] = useState("");
     const [category, setCategory] = useState("other");
@@ -49,7 +51,7 @@ export function AddExpenseModal({
     const updateExpense = useMutation(api.expenses.updateExpense);
 
     const isEditing = !!editingExpense;
-    const selectedCategory = categories?.find((c: any) => c.id === category);
+    const selectedCategory = categories?.find((c: { id: string }) => c.id === category);
 
     useEffect(() => {
         if (editingExpense) {
@@ -66,7 +68,7 @@ export function AddExpenseModal({
             setDate(new Date());
             setIsRecurring(false);
         }
-    }, [editingExpense]);
+    }, [editingExpense, setAmount, setDescription, setCategory, setDate, setIsRecurring]);
 
     const resetForm = () => {
         setAmount("");
@@ -83,7 +85,12 @@ export function AddExpenseModal({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !amount || !description || !date) return;
+        if (user === undefined) return; // Loading
+        if (user === null) {
+            // Not logged in
+            return;
+        }
+        if (!amount || !description || !date) return;
 
         setIsLoading(true);
         try {
@@ -110,6 +117,7 @@ export function AddExpenseModal({
             }
 
             handleClose();
+            onSuccess?.();
         } catch (error) {
             console.error("Failed to save expense:", error);
         } finally {
@@ -191,7 +199,7 @@ export function AddExpenseModal({
                                 </SelectValue>
                             </SelectTrigger>
                             <SelectContent className="bg-white rounded-otter shadow-soft border border-otter-lavender/20">
-                                {categories?.map((cat: any) => (
+                                {categories?.map((cat: { id: string; emoji: string; name: string }) => (
                                     <SelectItem key={cat.id} value={cat.id} className="hover:bg-otter-blue/5">
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl">{cat.emoji}</span>
@@ -269,5 +277,3 @@ export function AddExpenseModal({
         </Dialog>
     );
 }
-
-

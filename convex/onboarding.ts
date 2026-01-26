@@ -1,4 +1,4 @@
-import { mutation, internalQuery, query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
@@ -16,33 +16,30 @@ export const completeOnboarding = mutation({
         const user = await ctx.db.get(userId);
         if (!user) throw new Error("User not found");
 
-        // If Free plan, ensure they have a Personal workspace
-        if (args.plan === "free") {
-            const existingWorkspaces = await ctx.db
-                .query("members")
-                .withIndex("by_userId", (q) => q.eq("userId", userId))
-                .collect();
+        // Create a Personal workspace for both Free and Premium
+        const existingWorkspaces = await ctx.db
+            .query("members")
+            .withIndex("by_userId", (q) => q.eq("userId", userId))
+            .collect();
 
-            // Only create if they don't have one (idempotency)
-            // Note: In strict mode we might filter for role="owner" but this is simple enough
-            if (existingWorkspaces.length === 0) {
-                const workspaceId = await ctx.db.insert("workspaces", {
-                    name: "Personal",
-                    type: "personal",
-                    currency: "USD",
-                });
+        // Only create if they don't have one (idempotency)
+        if (existingWorkspaces.length === 0) {
+            const workspaceId = await ctx.db.insert("workspaces", {
+                name: "Personal",
+                type: "personal",
+                currency: "USD",
+            });
 
-                await ctx.db.insert("members", {
-                    workspaceId,
-                    userId,
-                    role: "owner",
-                    joinedAt: Date.now(),
-                });
+            await ctx.db.insert("members", {
+                workspaceId,
+                userId,
+                role: "owner",
+                joinedAt: Date.now(),
+            });
 
-                await ctx.db.patch(userId, {
-                    workspacesCreated: (user.workspacesCreated || 0) + 1,
-                });
-            }
+            await ctx.db.patch(userId, {
+                workspacesCreated: (user.workspacesCreated || 0) + 1,
+            });
         }
 
         await ctx.db.patch(userId, {
@@ -54,6 +51,22 @@ export const completeOnboarding = mutation({
     },
 });
 
+// Set user's subscription tier (e.g. when starting a trial)
+export const setSubscriptionTier = mutation({
+    args: {
+        tier: v.union(v.literal("free"), v.literal("premium")),
+    },
+    handler: async (ctx, args) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) {
+            throw new Error("Unauthorized");
+        }
+        await ctx.db.patch(userId, {
+            subscriptionTier: args.tier,
+        });
+    },
+});
+
 // Create a workspace (any type)
 export const createSharedWorkspace = mutation({
     args: {
@@ -62,6 +75,7 @@ export const createSharedWorkspace = mutation({
         currency: v.string(),
         splitMethod: v.optional(v.union(v.literal("50/50"), v.literal("income"), v.literal("custom"))),
         monthlyTarget: v.optional(v.number()),
+        ownerSplit: v.optional(v.number()), // Percentage (0-100) for owner in custom split
     },
     handler: async (ctx, args) => {
         const userId = await getAuthUserId(ctx);
@@ -69,11 +83,17 @@ export const createSharedWorkspace = mutation({
             throw new Error("Unauthorized");
         }
 
-        // Logic check: Enforce workspace limits (2 for Premium, 1 for Free)
         const user = await ctx.db.get(userId);
         if (!user) throw new Error("User not found");
 
         const isPremium = user.subscriptionTier === "premium";
+
+        // Enforce Premium for Split/Joint workspaces
+        if ((args.type === "split" || args.type === "joint") && !isPremium) {
+            throw new Error("Premium plan required for Shared Workspaces. Please upgrade.");
+        }
+
+        // Logic check: Enforce workspace limits (2 for Premium, 1 for Free)
         const limit = isPremium ? 2 : 1;
         const currentCount = user.workspacesCreated || 0;
 
@@ -81,13 +101,28 @@ export const createSharedWorkspace = mutation({
             throw new Error(`Plan limit reached (${limit} workspace${limit > 1 ? 's' : ''}). Upgrade to Premium to create more.`);
         }
 
+        let splitMethod = args.type === "split" ? (args.splitMethod || "50/50") : undefined;
+        let customSplitConfig = undefined;
+
+        // specific logic for custom split configuration
+        if (args.type === "split") {
+            if (args.ownerSplit !== undefined && args.ownerSplit !== 50) {
+                splitMethod = "custom";
+                customSplitConfig = JSON.stringify({
+                    owner: args.ownerSplit,
+                    member: 100 - args.ownerSplit
+                });
+            }
+        }
+
         // Create the workspace
         const workspaceId = await ctx.db.insert("workspaces", {
             name: args.name,
             type: args.type,
             currency: args.currency,
-            splitMethod: args.type === "split" ? (args.splitMethod || "50/50") : undefined,
+            splitMethod: splitMethod as any, // Cast to any to satisfy union type if needed, or rely on type check
             monthlyTarget: args.type === "joint" ? args.monthlyTarget : undefined,
+            customSplitConfig,
         });
 
         // Add the user as the owner
@@ -98,9 +133,10 @@ export const createSharedWorkspace = mutation({
             joinedAt: Date.now(),
         });
 
-        // Increment count
+        // Increment count and mark as onboarded (since this is the onboarding flow)
         await ctx.db.patch(userId, {
             workspacesCreated: (user.workspacesCreated || 0) + 1,
+            onboarded: true,
         });
 
         return { workspaceId };

@@ -9,11 +9,13 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as budgets from "../budgets.js";
 import type * as expenses from "../expenses.js";
 import type * as http from "../http.js";
 import type * as invitations from "../invitations.js";
 import type * as migrations from "../migrations.js";
 import type * as onboarding from "../onboarding.js";
+import type * as recurring from "../recurring.js";
 import type * as users from "../users.js";
 import type * as workspaces from "../workspaces.js";
 
@@ -25,11 +27,13 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  budgets: typeof budgets;
   expenses: typeof expenses;
   http: typeof http;
   invitations: typeof invitations;
   migrations: typeof migrations;
   onboarding: typeof onboarding;
+  recurring: typeof recurring;
   users: typeof users;
   workspaces: typeof workspaces;
 }>;

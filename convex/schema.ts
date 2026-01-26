@@ -97,5 +97,24 @@ export default defineSchema({
     .index("by_code", ["code"])
     .index("by_workspaceId", ["workspaceId"])
     .index("by_status", ["status"]),
+
+  category_budgets: defineTable({
+    workspaceId: v.id("workspaces"),
+    category: v.string(),
+    limit: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_category", ["workspaceId", "category"]),
+
+  recurring_expenses: defineTable({
+    workspaceId: v.id("workspaces"),
+    label: v.string(),
+    amount: v.number(),
+    category: v.string(),
+    interval: v.union(v.literal("monthly"), v.literal("yearly")),
+    lastProcessed: v.optional(v.number()),
+    nextDue: v.optional(v.number()),
+  })
+    .index("by_workspaceId", ["workspaceId"]),
 });
 

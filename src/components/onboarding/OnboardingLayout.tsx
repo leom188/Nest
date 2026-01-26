@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Toaster } from "sonner";
 
 interface OnboardingLayoutProps {
     children: React.ReactNode;
@@ -19,16 +20,26 @@ export function OnboardingLayout({
 }: OnboardingLayoutProps) {
     return (
         <div className="min-h-screen bg-otter-white flex flex-col items-center justify-center p-6">
+            <Toaster
+                position="bottom-center"
+                toastOptions={{
+                    style: {
+                        fontFamily: 'Nunito, sans-serif',
+                        borderRadius: '1.25rem',
+                        padding: '1rem',
+                    },
+                }}
+            />
             {/* Progress Dots */}
             <div className="flex gap-2 mb-8">
                 {Array.from({ length: totalSteps }).map((_, i) => (
                     <div
                         key={i}
                         className={`w-3 h-3 rounded-full transition-all ${i < step
-                                ? "bg-otter-blue"
-                                : i === step
-                                    ? "bg-otter-blue/50 scale-125"
-                                    : "bg-otter-lavender/30"
+                            ? "bg-otter-blue"
+                            : i === step
+                                ? "bg-otter-blue/50 scale-125"
+                                : "bg-otter-lavender/30"
                             }`}
                     />
                 ))}

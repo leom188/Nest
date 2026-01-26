@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { motion } from "framer-motion";
-import { UserPlus, Copy, Check, QrCode } from "lucide-react";
+import { UserPlus, Copy, Check, QrCode, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Id } from "../../convex/_generated/dataModel";
 
@@ -12,12 +12,14 @@ interface InvitePartnerPromptProps {
     workspaceId: Id<"workspaces">;
     workspaceName: string;
     workspaceType: "split" | "joint";
+    onDismiss?: () => void;
 }
 
 export function InvitePartnerPrompt({
     workspaceId,
     workspaceName,
     workspaceType,
+    onDismiss,
 }: InvitePartnerPromptProps) {
     const [inviteCode, setInviteCode] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -54,8 +56,16 @@ export function InvitePartnerPrompt({
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-br from-otter-blue/5 to-otter-lavender/10 rounded-otter p-6 border-2 border-dashed border-otter-blue/30"
+            className="relative bg-gradient-to-br from-otter-blue/5 to-otter-lavender/10 rounded-otter p-6 border-2 border-dashed border-otter-blue/30"
         >
+            {onDismiss && (
+                <button
+                    onClick={onDismiss}
+                    className="absolute top-2 right-2 p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-black/5 transition-colors"
+                >
+                    <X className="w-5 h-5" />
+                </button>
+            )}
             <div className="flex items-start gap-4">
                 <div className="w-14 h-14 bg-otter-blue/10 rounded-2xl flex items-center justify-center flex-shrink-0">
                     <UserPlus className="w-7 h-7 text-otter-blue" />

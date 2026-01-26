@@ -5,40 +5,44 @@ import { useQuery } from "convex/react";
 import { useLocation } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { ArrowRightLeft, Plus } from "lucide-react";
 import { motion } from "framer-motion";
-import { TrendingDown, TrendingUp, Wallet, ArrowRightLeft } from "lucide-react";
 import { ContextBar } from "../components/ContextBar";
 import { InvitePartnerPrompt } from "../components/InvitePartnerPrompt";
+import { ContextualEmptyState } from "../components/ContextualEmptyState";
 import { SwipeableExpenseCard } from "../components/ui/SwipeableExpenseCard";
-import { AddExpenseModal } from "../components/AddExpenseModal";
 import { useAuthStore } from "../stores/authStore";
+import { useUIStore, Expense } from "../stores/uiStore";
+import { Celebration } from "../components/Celebration";
 
 interface DashboardProps {
     workspaceId: Id<"workspaces">;
     onWorkspaceSelect?: (workspaceId: string) => void;
     onCreateWorkspace?: () => void;
-    onWorkspaceSettings?: (workspaceId: string) => void;
+}
+// ... interface definitions ...
+
+interface MemberWithUser {
+    userId: string;
+    role: string;
+    user: {
+        _id: string;
+        name?: string;
+        email?: string;
+    };
 }
 
-export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace, onWorkspaceSettings }: DashboardProps) {
-    const { user } = useAuthStore();
-    const location = useLocation();
-    const [showAddExpense, setShowAddExpense] = useState(false);
-    const [editingExpense, setEditingExpense] = useState<{
-        _id: string;
-        amount: number;
-        description: string;
-        category: string;
-        date: number;
-        isRecurring?: boolean;
-    } | null>(null);
 
-    // Check if we should open the expense modal (from FirstWin onboarding)
-    useEffect(() => {
-        if (location.state?.openExpenseModal) {
-            setShowAddExpense(true);
-        }
-    }, [location.state]);
+
+export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace }: DashboardProps) {
+    const { user } = useAuthStore();
+    const { openAddExpenseModal } = useUIStore();
+    // const [showAddExpense, setShowAddExpense] = useState(false); // Removed
+    const [justAddedExpense, setJustAddedExpense] = useState(false);
+    const [showCelebration, setShowCelebration] = useState(false);
+    const location = useLocation();
+
+    // editingExpense state moved to uiStore
 
     const workspace = useQuery(api.workspaces.getWorkspaceWithMembers, {
         workspaceId,
@@ -53,6 +57,36 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace, o
         workspaceId,
     });
 
+    const totalThisMonth = stats?.totalSpent || 0;
+    const expenseCount = expenses?.length || 0;
+    const budget = workspace?.monthlyBudget || 0;
+
+    useEffect(() => {
+        if (location.state?.openExpenseModal) {
+            openAddExpenseModal();
+        }
+    }, [location.state]);
+
+    useEffect(() => {
+        if (expenseCount > 0 && justAddedExpense) {
+            setJustAddedExpense(false);
+            setShowCelebration(true);
+        }
+    }, [expenseCount, justAddedExpense]);
+
+    // Check if user has dismissed the invite prompt for this workspace
+    const [dismissedInvite, setDismissedInvite] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem(`hasDismissedInvite_${workspaceId}`) === 'true';
+        }
+        return false;
+    });
+
+    const handleDismissInvite = () => {
+        localStorage.setItem(`hasDismissedInvite_${workspaceId}`, 'true');
+        setDismissedInvite(true);
+    };
+
     if (!workspace) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -65,27 +99,8 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace, o
         (workspace.type === "split" || workspace.type === "joint") &&
         workspace.members.length === 1;
 
-    // Use stats for totals, defaulting to client-side sum if loading (or just 0)
-    const totalThisMonth = stats?.totalSpent || 0;
-    const expenseCount = expenses?.length || 0;
-    const budget = user?.monthlyBudget || 0;
-    const budgetDiff = budget - totalThisMonth;
-
-    const handleEditExpense = (expense: {
-        _id: string;
-        amount: number;
-        description: string;
-        category: string;
-        date: number;
-        isRecurring?: boolean;
-    }) => {
-        setEditingExpense(expense);
-        setShowAddExpense(true);
-    };
-
-    const handleCloseModal = () => {
-        setShowAddExpense(false);
-        setEditingExpense(null);
+    const handleEditExpense = (expense: Expense) => {
+        openAddExpenseModal(expense);
     };
 
     return (
@@ -95,56 +110,52 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace, o
                 workspaceName={workspace.name}
                 onWorkspaceSelect={onWorkspaceSelect}
                 onCreateWorkspace={onCreateWorkspace}
-                onWorkspaceSettings={onWorkspaceSettings}
                 currentWorkspaceId={workspaceId}
+                membersCount={workspace.members.length}
             />
 
             <div className="flex-1 p-4 pb-24 safe-x">
-                {isSoloSharedWorkspace && (
+                {isSoloSharedWorkspace && !dismissedInvite && (
                     <div className="mb-6">
                         <InvitePartnerPrompt
                             workspaceId={workspaceId}
                             workspaceName={workspace.name}
                             workspaceType={workspace.type as "split" | "joint"}
+                            onDismiss={handleDismissInvite}
                         />
                     </div>
                 )}
 
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white rounded-otter shadow-soft p-6 mb-4"
-                >
+                <div className="mb-8">
                     {workspace.type === "personal" && (
                         <PersonalHeroContent
                             total={totalThisMonth}
                             budget={budget}
-                            budgetDiff={budgetDiff}
                             expenseCount={expenseCount}
                         />
                     )}
 
                     {workspace.type === "split" && (
                         <SplitHeroContent
-                            partnerName={workspace.members.find((m: any) => m.userId !== user?._id)?.user?.name}
+                            partnerName={workspace.members.find((m: MemberWithUser) => m.userId !== user?._id)?.user?.name}
                             myBalance={stats?.myBalance || 0}
                         />
                     )}
 
                     {workspace.type === "joint" && (
                         <JointHeroContent
-                            monthlyTarget={workspace.monthlyTarget || 0}
+                            budget={workspace.monthlyBudget || workspace.monthlyTarget || 0}
                             spent={totalThisMonth}
                         />
                     )}
-                </motion.div>
+                </div>
 
                 {expenses && expenses.length > 0 ? (
                     <div className="space-y-3">
                         <h3 className="text-lg font-bold font-quicksand text-gray-800 mb-3">
                             Recent Expenses
                         </h3>
-                        {expenses.map((expense: any) => (
+                        {expenses.map((expense: Expense) => (
                             <SwipeableExpenseCard
                                 key={expense._id}
                                 expense={{ ...expense, workspaceId }}
@@ -153,29 +164,39 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace, o
                         ))}
                     </div>
                 ) : (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-white rounded-otter shadow-soft p-8 text-center"
-                    >
-                        <div className="w-16 h-16 bg-otter-blue/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Wallet className="w-8 h-8 text-otter-blue" />
-                        </div>
-                        <h3 className="text-xl font-bold font-quicksand text-gray-800 mb-2">
-                            No expenses yet
-                        </h3>
-                        <p className="text-gray-500 font-nunito">
-                            Tap the + button below to add your first expense
-                        </p>
-                    </motion.div>
+                    <ContextualEmptyState
+                        workspaceType={workspace.type}
+                        onAddExpense={() => openAddExpenseModal()}
+                    />
                 )}
+
+
             </div>
 
-            <AddExpenseModal
-                workspaceId={workspaceId}
-                isOpen={showAddExpense}
-                onClose={handleCloseModal}
-                editingExpense={editingExpense}
+
+
+            {/* Floating Action Button for Adding Expense */}
+            {/* Floating Action Button for Adding Expense */}
+            <div className="fixed bottom-24 left-0 right-0 z-40 pointer-events-none safe-x">
+                <div className="max-w-md mx-auto relative w-full px-4">
+                    <button
+                        onClick={() => openAddExpenseModal()}
+                        className="absolute right-4 bottom-0 pointer-events-auto w-14 h-14 bg-otter-blue hover:bg-otter-blue/90 text-white rounded-full shadow-lg shadow-otter-blue/30 flex items-center justify-center transition-all active:scale-95"
+                        aria-label="Add Expense"
+                    >
+                        <Plus className="w-8 h-8" strokeWidth={2.5} />
+                    </button>
+                </div>
+            </div>
+
+            <Celebration
+                show={showCelebration}
+                message={workspace.type === "personal"
+                    ? "Your first expense has been logged!"
+                    : workspace.type === "split"
+                        ? "Your first shared expense has been added!"
+                        : "Your first common pot expense is in!"}
+                onComplete={() => setShowCelebration(false)}
             />
         </div>
     );
@@ -184,68 +205,61 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace, o
 function PersonalHeroContent({
     total,
     budget,
-    budgetDiff,
     expenseCount,
 }: {
     total: number;
     budget: number;
-    budgetDiff: number;
     expenseCount: number;
 }) {
-    const hasBudget = budget > 0;
-    const isOverBudget = budgetDiff < 0;
+    const totalPercentage = budget > 0 ? Math.min((total / budget) * 100, 100) : 0;
+    const isOverBudget = total > budget && budget > 0;
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-sm font-bold text-gray-400 font-nunito uppercase tracking-widest mb-1">
-                        Monthly Spending
-                    </p>
-                    <p className="text-4xl font-bold font-quicksand text-otter-blue">
-                        ${total.toFixed(2)}
-                    </p>
+        <div className="bg-gradient-to-br from-otter-blue to-otter-fresh rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+            {/* Background Decoration */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+
+            <div className="relative z-10">
+                <div className="flex justify-between items-end mb-4">
+                    <div>
+                        <p className="text-otter-blue-100 font-nunito text-sm mb-1">Total Spent</p>
+                        <h3 className="text-3xl font-bold font-quicksand">${total.toFixed(2)}</h3>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-otter-blue-100 font-nunito text-sm mb-1">Monthly Limit</p>
+                        <p className="text-xl font-bold font-quicksand">
+                            {budget > 0 ? `$${budget.toFixed(2)}` : "No Limit"}
+                        </p>
+                    </div>
                 </div>
-                <div className="w-16 h-16 bg-otter-blue/10 rounded-2xl flex items-center justify-center overflow-hidden">
-                    <img
-                        src="/icons/logo.png"
-                        alt="Nest Mascot"
-                        className="w-12 h-12 object-contain"
+
+                {/* Progress Bar */}
+                <div className="h-4 bg-black/20 rounded-full overflow-hidden backdrop-blur-sm">
+                    <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${totalPercentage}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                        className={`h-full rounded-full ${isOverBudget ? "bg-otter-pink" : "bg-white"}`}
                     />
                 </div>
-            </div>
 
-            <div
-                className={`p-4 rounded-xl flex items-start gap-3 ${isOverBudget ? "bg-otter-pink/10" : "bg-otter-mint/10"
-                    }`}
-            >
-                <div
-                    className={`p-2 rounded-lg ${isOverBudget ? "bg-otter-pink/20" : "bg-otter-mint/20"
-                        }`}
-                >
-                    {isOverBudget ? (
-                        <TrendingUp className={`w-5 h-5 text-otter-pink`} />
-                    ) : (
-                        <TrendingDown className={`w-5 h-5 text-otter-mint`} />
-                    )}
-                </div>
-                <p className="text-sm font-bold font-nunito leading-tight">
-                    {hasBudget ? (
-                        isOverBudget ? (
-                            <span className="text-otter-pink">
-                                You've exceeded your budget by ${Math.abs(budgetDiff).toFixed(2)}
-                            </span>
-                        ) : (
-                            <span className="text-otter-mint">
-                                You're ${budgetDiff.toFixed(2)} under budget! Keep it up! 🎉
-                            </span>
-                        )
-                    ) : (
-                        <span className="text-gray-600">
-                            Tracking {expenseCount} expense{expenseCount !== 1 ? "s" : ""} so far this month.
-                        </span>
-                    )}
-                </p>
+                {isOverBudget && (
+                    <p className="text-white/90 font-bold text-sm mt-3 flex items-center gap-1 bg-otter-pink/20 py-1 px-3 rounded-lg w-fit">
+                        ⚠️ Over budget by ${(total - budget).toFixed(2)}
+                    </p>
+                )}
+
+                {!isOverBudget && budget > 0 && (
+                    <p className="text-white/80 text-sm mt-3 font-nunito">
+                        ${(budget - total).toFixed(2)} remaining
+                    </p>
+                )}
+
+                {!budget && (
+                    <p className="text-white/80 text-sm mt-3 font-nunito">
+                        Tracking {expenseCount} expense{expenseCount !== 1 ? "s" : ""}
+                    </p>
+                )}
             </div>
         </div>
     );
@@ -258,8 +272,6 @@ function SplitHeroContent({
     partnerName?: string;
     myBalance?: number;
 }) {
-    // myBalance > 0: I am owed money.
-    // myBalance < 0: I owe money.
     const owesAmount = myBalance;
 
     return (
@@ -287,39 +299,55 @@ function SplitHeroContent({
 }
 
 function JointHeroContent({
-    monthlyTarget,
+    budget,
     spent,
 }: {
-    monthlyTarget: number;
+    budget: number;
     spent: number;
 }) {
-    const remaining = monthlyTarget - spent;
-    const percentage = monthlyTarget > 0 ? (spent / monthlyTarget) * 100 : 0;
+    const percentage = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
+    const isOverBudget = spent > budget && budget > 0;
 
     return (
-        <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-otter-lavender/10 rounded-xl flex items-center justify-center">
-                <Wallet className="w-6 h-6 text-otter-lavender" />
-            </div>
-            <div className="flex-1">
-                <p className="text-sm text-gray-400 font-nunito uppercase tracking-wide mb-1">
-                    Bag Balance
-                </p>
-                <p className="text-3xl font-bold font-quicksand text-gray-800">
-                    ${remaining.toFixed(2)}
-                </p>
-                <div className="mt-3">
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                            className={`h-full rounded-full transition-all ${percentage > 100 ? "bg-otter-pink" : "bg-otter-lavender"
-                                }`}
-                            style={{ width: `${Math.min(percentage, 100)}%` }}
-                        />
+        <div className="bg-gradient-to-br from-otter-blue to-otter-fresh rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+            {/* Background Decoration */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+
+            <div className="relative z-10">
+                <div className="flex justify-between items-end mb-4">
+                    <div>
+                        <p className="text-white/80 font-nunito text-sm mb-1">Total Spent</p>
+                        <h3 className="text-3xl font-bold font-quicksand">${spent.toFixed(2)}</h3>
                     </div>
-                    <p className="text-sm text-gray-400 font-nunito mt-1">
-                        ${spent.toFixed(2)} of ${monthlyTarget.toFixed(2)} spent
-                    </p>
+                    <div className="text-right">
+                        <p className="text-white/80 font-nunito text-sm mb-1">Monthly Budget</p>
+                        <p className="text-xl font-bold font-quicksand">
+                            {budget > 0 ? `$${budget.toFixed(2)}` : "No Limit"}
+                        </p>
+                    </div>
                 </div>
+
+                {/* Progress Bar */}
+                <div className="h-4 bg-black/20 rounded-full overflow-hidden backdrop-blur-sm">
+                    <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${percentage}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                        className={`h-full rounded-full ${isOverBudget ? "bg-otter-pink" : "bg-white"}`}
+                    />
+                </div>
+
+                {isOverBudget && (
+                    <p className="text-white/90 font-bold text-sm mt-3 flex items-center gap-1 bg-otter-pink/20 py-1 px-3 rounded-lg w-fit">
+                        ⚠️ Over budget by ${(spent - budget).toFixed(2)}
+                    </p>
+                )}
+
+                {!isOverBudget && budget > 0 && (
+                    <p className="text-white/80 text-sm mt-3 font-nunito">
+                        ${(budget - spent).toFixed(2)} remaining in the pot
+                    </p>
+                )}
             </div>
         </div>
     );

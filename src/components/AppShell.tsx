@@ -8,7 +8,9 @@ interface AppShellProps {
   children: ReactNode;
 }
 
+import { BottomNav } from "./BottomNav";
 export function AppShell({ children }: AppShellProps) {
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -29,6 +31,7 @@ export function AppShell({ children }: AppShellProps) {
       <div className="mx-auto max-w-md w-full px-4 py-6 pb-24">
         {children}
       </div>
+      <BottomNav />
     </motion.div>
   );
 }

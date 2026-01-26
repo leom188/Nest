@@ -16,7 +16,15 @@
   --radius: 20px;
   --card: #FFFFFF;
   --card-foreground: #2D3436;
+  --card-foreground: #2D3436;
   --border: #E1E8ED;
+  --popover: #FFFFFF;
+  --popover-foreground: #2D3436;
+  --muted: #F7F9FC;
+  --muted-foreground: #636E72;
+  --accent-foreground: #2D3436;
+  --input: #E1E8ED;
+  --ring: #6C5CE7;
 }
 
 body {
@@ -83,6 +91,8 @@ h6 {
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-otter-blue: var(--primary);
   --color-otter-fresh: var(--secondary);
   --color-otter-coral: #FAB1A0;

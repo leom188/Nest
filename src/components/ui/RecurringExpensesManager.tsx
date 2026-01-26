@@ -20,7 +20,7 @@ interface RecurringExpense {
     category: string;
     date: number;
     recurrenceRule?: string;
-    payer?: { name: string } | null;
+    payer?: { name?: string } | null;
 }
 
 export function RecurringExpensesManager({

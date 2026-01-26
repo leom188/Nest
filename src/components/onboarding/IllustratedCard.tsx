@@ -11,6 +11,9 @@ interface IllustratedCardProps {
     onClick: () => void;
     variant?: "default" | "premium";
     customButtonText?: string;
+    children?: React.ReactNode;
+    className?: string;
+    disabled?: boolean;
 }
 
 export function IllustratedCard({
@@ -21,18 +24,22 @@ export function IllustratedCard({
     onClick,
     variant = "default",
     customButtonText,
+    children,
+    className = "",
+    disabled = false,
 }: IllustratedCardProps) {
     const isPremium = variant === "premium";
 
     return (
         <motion.div
             whileHover={{ scale: 1.02 }}
+            onClick={!disabled ? onClick : undefined}
             className={`w-full p-6 rounded-otter text-left transition-all relative overflow-hidden flex flex-col h-full ${selected
-                    ? "bg-otter-blue text-white shadow-lg ring-4 ring-otter-blue/30"
-                    : isPremium
-                        ? "bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 shadow-soft"
-                        : "bg-white shadow-soft hover:shadow-lg border border-otter-lavender/20"
-                }`}
+                ? "bg-otter-blue text-white shadow-lg ring-4 ring-otter-blue/30"
+                : isPremium
+                    ? "bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 shadow-soft"
+                    : "bg-white shadow-soft hover:shadow-lg border border-otter-lavender/20"
+                } ${disabled ? "opacity-50 cursor-not-allowed" : ""} ${className}`}
         >
             {isPremium && (
                 <div className="absolute top-4 right-4 flex items-center gap-1 bg-gradient-to-r from-amber-400 to-orange-400 text-white px-2 py-1 rounded-full text-xs font-bold">
@@ -59,21 +66,30 @@ export function IllustratedCard({
             </h3>
 
             <p
-                className={`font-nunito flex-grow mb-6 ${selected ? "text-white/80" : "text-gray-500"
+                className={`font-nunito mb-2 ${selected ? "text-white/80" : "text-gray-500"
                     }`}
             >
                 {description}
             </p>
 
+            {/* Render Children (Lists, extra info) */}
+            <div className="flex-grow mb-6">
+                {children}
+            </div>
+
             {customButtonText && (
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
-                        onClick();
+                        if (!disabled) onClick();
                     }}
-                    className={`w-full py-2 rounded-full font-bold text-sm transition-all shadow-md hover:shadow-lg ${isPremium
-                            ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
-                            : "bg-otter-blue text-white hover:bg-otter-blue/90"
+                    disabled={disabled}
+                    className={`w-full py-2 rounded-full font-bold text-sm transition-all shadow-md hover:shadow-lg ${disabled
+                        ? "opacity-50 cursor-not-allowed"
+                        : ""
+                        } ${isPremium
+                        ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                        : "bg-otter-blue text-white hover:bg-otter-blue/90"
                         }`}
                 >
                     {customButtonText}

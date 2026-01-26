@@ -4,8 +4,8 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useAuthStore } from "../stores/authStore";
-import { ChevronDown, ChevronUp, Plus, Wallet, PiggyBank, Settings } from "lucide-react";
+
+import { ChevronDown, ChevronUp, Plus, Wallet, PiggyBank } from "lucide-react";
 import { Button } from "./ui/button";
 
 interface ContextBarProps {
@@ -13,8 +13,8 @@ interface ContextBarProps {
     workspaceName: string;
     onWorkspaceSelect?: (workspaceId: string) => void;
     onCreateWorkspace?: () => void;
-    onWorkspaceSettings?: (workspaceId: string) => void;
     currentWorkspaceId?: string;
+    membersCount?: number;
 }
 
 export function ContextBar({
@@ -22,33 +22,15 @@ export function ContextBar({
     workspaceName,
     onWorkspaceSelect,
     onCreateWorkspace,
-    onWorkspaceSettings,
-    currentWorkspaceId
+    currentWorkspaceId,
+    membersCount
 }: ContextBarProps) {
     const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
 
 
     const workspaces = useQuery(api.workspaces.getWorkspacesForUser) || [];
 
-    const config = {
-        personal: {
-            bg: "bg-gradient-to-r from-otter-fresh to-otter-fresh/80",
-            label: "Personal",
-            icon: "👤",
-        },
-        split: {
-            bg: "bg-gradient-to-r from-otter-mint to-otter-mint/80",
-            label: "Split",
-            icon: "⚖️",
-        },
-        joint: {
-            bg: "bg-gradient-to-r from-otter-lavender to-otter-lavender/80",
-            label: "Joint",
-            icon: "🏦",
-        },
-    };
-
-    const { bg, label, icon } = config[type];
+    // config removed as it is no longer used for display labels
 
     const getWorkspaceIcon = (type: "personal" | "split" | "joint") => {
         if (type === "personal") return "👤";
@@ -57,7 +39,8 @@ export function ContextBar({
 
     const getWorkspaceLabel = (type: "personal" | "split" | "joint") => {
         if (type === "personal") return "Personal";
-        return type === "split" ? "Split" : "Joint";
+        if (type === "split") return "Split";
+        return "Shared";
     };
 
     const toggleWorkspaceMenu = () => {
@@ -133,18 +116,7 @@ export function ContextBar({
                                                 </div>
                                             </div>
                                             {(workspace.userRole === "owner" || workspace.userRole === "admin") && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-gray-400 hover:text-otter-blue rounded-full"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onWorkspaceSettings?.(workspace._id);
-                                                        setIsWorkspaceMenuOpen(false);
-                                                    }}
-                                                >
-                                                    <Settings className="h-4 w-4" />
-                                                </Button>
+                                                <div className="w-8" /> // Spacer to keep alignment if needed, or just remove the button code entirely.
                                             )}
                                         </div>
                                     </motion.div>
@@ -167,42 +139,38 @@ export function ContextBar({
             </AnimatePresence>
 
             {/* Main Context Bar */}
-            <div className="bg-white/80 backdrop-blur-xl border-b border-gray-100/50 px-4 py-3 flex items-center justify-between sticky top-0 z-40 safe-top">
+            <div className="bg-white/90 backdrop-blur-xl border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-40 safe-top transition-all duration-200">
                 {/* Left side - Logo and current workspace */}
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 bg-gradient-to-br from-otter-blue to-otter-blue/80 rounded-2xl flex items-center justify-center shadow-lg shadow-otter-blue/20 flex-shrink-0">
+                    <div className="w-10 h-10 bg-gradient-to-br from-otter-blue to-otter-fresh rounded-2xl flex items-center justify-center shadow-lg shadow-otter-blue/20 flex-shrink-0">
                         <img src="/icons/logo.png" alt="Nest Logo" className="w-7 h-7 object-contain" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <h1 className="text-lg font-bold font-quicksand text-otter-blue leading-tight">
-                            Nest
-                        </h1>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            <p className="text-sm font-medium text-gray-600 truncate">
+                        <div className="flex items-center gap-1 group cursor-pointer" onClick={toggleWorkspaceMenu}>
+                            <h1 className="text-lg font-bold font-quicksand text-gray-900 leading-tight truncate group-hover:text-otter-blue transition-colors">
                                 {workspaceName}
-                            </p>
-                            {/* Workspace switcher button - always show to allow creating new workspaces */}
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={toggleWorkspaceMenu}
-                                className="h-6 w-6 text-gray-400 hover:text-otter-blue hover:bg-otter-blue/10 rounded-full flex-shrink-0 ml-1"
-                            >
+                            </h1>
+                            <div className="h-4 w-4 text-gray-400 group-hover:text-otter-blue/70 transition-colors">
                                 {isWorkspaceMenuOpen ? (
-                                    <ChevronUp className="h-3 w-3" />
+                                    <ChevronUp className="h-4 w-4" />
                                 ) : (
-                                    <ChevronDown className="h-3 w-3" />
+                                    <ChevronDown className="h-4 w-4" />
                                 )}
-                            </Button>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-xs font-medium text-gray-500 font-nunito uppercase tracking-wide">
+                            <span>
+                                {getWorkspaceLabel(type)} Workspace
+                            </span>
+                            <span className="text-gray-300">•</span>
+                            <span>
+                                {membersCount || 1} Member{(membersCount || 1) !== 1 ? "s" : ""}
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                {/* Right side - Workspace type badge */}
-                <div className={`${bg} h-8 px-3 rounded-full flex items-center gap-1.5 text-white shadow-sm`}>
-                    <span className="text-sm">{icon}</span>
-                    <span className="text-xs font-bold font-nunito uppercase tracking-wider">{label}</span>
-                </div>
+                {/* Right side - Removed as integrated into left side */}
             </div>
         </>
     );

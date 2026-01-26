@@ -12,7 +12,7 @@ interface Expense {
     description: string;
     category: string;
     date: number;
-    payer: { name: string; email: string } | null;
+    payer: { name?: string; email?: string } | null;
     workspaceId: Id<"workspaces">;
     isRecurring?: boolean;
     recurrenceRule?: string;

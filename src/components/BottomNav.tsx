@@ -4,12 +4,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Home, BarChart3, Calendar, Menu } from "lucide-react";
 import { motion } from "framer-motion";
 
-interface BottomNavProps {
-    onAddExpense: () => void;
-    isAddDisabled?: boolean;
-}
-
-export function BottomNav({ onAddExpense, isAddDisabled }: BottomNavProps) {
+// Removed unused props interface
+export function BottomNav() {
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -25,12 +21,6 @@ export function BottomNav({ onAddExpense, isAddDisabled }: BottomNavProps) {
             icon: BarChart3,
             label: "Insights",
             path: "/insights",
-        },
-        {
-            id: "add",
-            label: "Add",
-            isPrimary: true,
-            action: onAddExpense,
         },
         {
             id: "plan",
@@ -59,38 +49,6 @@ export function BottomNav({ onAddExpense, isAddDisabled }: BottomNavProps) {
                 {navItems.map((item) => {
                     const Icon = item.icon;
                     const active = isActive(item.path);
-
-                    if (item.isPrimary) {
-                        return (
-                            <motion.button
-                                key={item.id}
-                                initial={{ opacity: 0, scale: 0.5 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                whileTap={isAddDisabled ? {} : { scale: 0.9 }}
-                                onClick={item.action}
-                                disabled={isAddDisabled}
-                                className={`relative -top-4 w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all ${isAddDisabled
-                                    ? "bg-gray-200 cursor-not-allowed opacity-50 grayscale"
-                                    : "bg-otter-blue hover:shadow-xl active:scale-95"
-                                    }`}
-                                aria-label="Add expense"
-                            >
-                                <svg
-                                    className="w-7 h-7 text-white"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2.5}
-                                        d="M12 4v16m8-8H4"
-                                    />
-                                </svg>
-                            </motion.button>
-                        );
-                    }
 
                     return (
                         <button

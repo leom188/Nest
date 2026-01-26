@@ -32,7 +32,9 @@ export function Login() {
           flow: "signIn",
         });
       }
-      navigate("/");
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get("redirect");
+      navigate(redirect || "/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
       setIsPending(false);

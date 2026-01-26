@@ -1,69 +1,56 @@
 "use client";
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Scale, Wallet, User } from "lucide-react";
+import { Scale, Wallet } from "lucide-react";
 import { OnboardingLayout } from "../../components/onboarding/OnboardingLayout";
 import { IllustratedCard } from "../../components/onboarding/IllustratedCard";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { useAuthStore } from "../../stores/authStore";
 
-type Mode = "personal" | "split" | "joint";
+type Mode = "split" | "joint";
+
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 export function WorkspaceSetup() {
-    const [selectedMode, setSelectedMode] = useState<Mode | null>(null);
-    const [workspaceName, setWorkspaceName] = useState("");
-    const [monthlyTarget, setMonthlyTarget] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
-    const { user } = useAuthStore();
+    const [isLoading, setIsLoading] = useState(false);
+    const user = useQuery(api.users.current);
     const createSharedWorkspace = useMutation(api.onboarding.createSharedWorkspace);
 
-    const handleModeSelection = (mode: Mode) => {
-        setSelectedMode(mode);
-        // Auto-populate workspace name based on selection
-        if (mode === "split" && !workspaceName) {
-            setWorkspaceName("Household Split");
-        } else if (mode === "joint" && !workspaceName) {
-            setWorkspaceName("Family Budget");
-        } else if (mode === "personal" && !workspaceName) {
-            setWorkspaceName("Personal");
+    const handleCreateWorkspace = async (mode: Mode) => {
+        if (user === undefined) {
+            // Still loading user data
+            return;
         }
-    };
 
-    const handleContinue = async () => {
-        if (!selectedMode || !workspaceName) return;
-
-        if (!user) {
-            console.error("User not found in store");
-            alert("Please wait for login to complete.");
+        if (user === null) {
+            console.error("User not found via useQuery");
+            toast.error("Please login to create a workspace.");
             return;
         }
 
         setIsLoading(true);
         try {
             await createSharedWorkspace({
-                name: workspaceName,
-                type: selectedMode,
+                name: mode === "split" ? "Household Split" : "Family Budget",
+                type: mode,
                 currency: "USD",
-                splitMethod: selectedMode === "split" ? "50/50" : undefined,
-                monthlyTarget: selectedMode === "joint" ? parseFloat(monthlyTarget) || undefined : undefined,
+                splitMethod: mode === "split" ? "50/50" : undefined,
+                monthlyTarget: undefined,
+                ownerSplit: mode === "split" ? 50 : undefined,
             });
 
-            navigate("/onboarding/first-win");
-        } catch (error: any) {
+            // window.location.href = "/"; // Force reload to ensure workspace data is fresh
+            navigate("/");
+        } catch (error) {
             console.error("Failed to create workspace:", error);
-            alert(`Failed to create workspace: ${error.message || "Unknown error"}`);
+            const errorMessage = error instanceof Error ? error.message : "Unknown error";
+            toast.error(`Failed to create workspace: ${errorMessage}`);
         } finally {
             setIsLoading(false);
         }
     };
-
-    // Auto-enable continue when form is valid
-    const isFormValid = selectedMode && workspaceName.trim().length > 0;
 
     return (
         <OnboardingLayout
@@ -72,75 +59,21 @@ export function WorkspaceSetup() {
             title="Let's set up your space"
             subtitle="As a Premium member, you can create flexible workspaces."
         >
-            <div className="grid gap-4 md:grid-cols-3 mb-6">
-                <IllustratedCard
-                    icon={User}
-                    title="Personal"
-                    description="Just for you. Private and secure."
-                    selected={selectedMode === "personal"}
-                    onClick={() => handleModeSelection("personal")}
-                />
+            <div className="grid gap-4 md:grid-cols-2 max-w-2xl mx-auto">
                 <IllustratedCard
                     icon={Scale}
                     title="Fair Split"
                     description="Track shared expenses and settle up later."
-                    selected={selectedMode === "split"}
-                    onClick={() => handleModeSelection("split")}
+                    onClick={() => handleCreateWorkspace("split")}
+                    disabled={isLoading || user === undefined}
                 />
                 <IllustratedCard
                     icon={Wallet}
                     title="Common Pot"
                     description="Pool money together for a shared budget."
-                    selected={selectedMode === "joint"}
-                    onClick={() => handleModeSelection("joint")}
+                    onClick={() => handleCreateWorkspace("joint")}
+                    disabled={isLoading || user === undefined}
                 />
-            </div>
-
-            {selectedMode && (
-                <div className="bg-white rounded-otter shadow-soft p-6 space-y-4">
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">
-                            Name your workspace
-                        </label>
-                        <Input
-                            placeholder="e.g., My Apartment"
-                            value={workspaceName}
-                            onChange={(e) => setWorkspaceName(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && isFormValid && !isLoading) {
-                                    handleContinue();
-                                }
-                            }}
-                        />
-                    </div>
-
-                    {selectedMode === "joint" && (
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
-                                Monthly budget target (optional)
-                            </label>
-                            <Input
-                                type="number"
-                                placeholder="e.g., 2000"
-                                value={monthlyTarget}
-                                onChange={(e) => setMonthlyTarget(e.target.value)}
-                            />
-                        </div>
-                    )}
-                </div>
-            )}
-
-            <div className="mt-8 flex justify-center">
-                <Button
-                    onClick={handleContinue}
-                    disabled={!isFormValid || isLoading}
-                    className={`px-12 transition-all ${isFormValid && !isLoading
-                        ? "bg-otter-blue hover:bg-otter-blue/90 shadow-lg scale-105"
-                        : ""
-                        }`}
-                >
-                    {isLoading ? "Creating..." : "Create Workspace"}
-                </Button>
             </div>
         </OnboardingLayout>
     );
