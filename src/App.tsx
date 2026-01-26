@@ -16,8 +16,8 @@ import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
 import { Dashboard } from "./pages/Dashboard";
 import { AddExpenseModal } from "./components/AddExpenseModal";
-import { PlanSelection } from "./pages/Onboarding/PlanSelection";
-import { WorkspaceSetup } from "./pages/Onboarding/WorkspaceSetup";
+import { IntentSelection } from "./pages/Onboarding/IntentSelection";
+import { ModeSelector } from "./pages/Onboarding/ModeSelector";
 import { FirstWin } from "./pages/Onboarding/FirstWin";
 import { useAuthStore } from "./stores/authStore";
 import { InsightsPage } from "./pages/InsightsPage";
@@ -73,10 +73,10 @@ function RouterContent() {
   if (needsOnboarding) {
     return (
       <Routes>
-        <Route path="/onboarding/plan" element={<PlanSelection />} />
-        <Route path="/onboarding/setup" element={<WorkspaceSetup />} />
+        <Route path="/onboarding/intent" element={<IntentSelection />} />
+        <Route path="/onboarding/mode" element={<ModeSelector />} />
         <Route path="/onboarding/first-win" element={<FirstWin />} />
-        <Route path="*" element={<Navigate to="/onboarding/plan" replace />} />
+        <Route path="*" element={<Navigate to="/onboarding/intent" replace />} />
       </Routes>
     );
   }
