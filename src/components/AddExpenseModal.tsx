@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, DollarSign, Repeat, Mic, Square, Loader2, Sparkles, Check, Trash2 } from "lucide-react";
+import { SpeechRecognition } from '@capgo/capacitor-speech-recognition';
+import { Capacitor } from '@capacitor/core';
+import { Calendar, DollarSign, Repeat, Mic, Loader2, Sparkles, Check, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
@@ -55,16 +57,16 @@ export function AddExpenseModal({
 
     // AI / Voice State
     const [isRecording, setIsRecording] = useState(false);
-    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+    const isRecordingRef = useRef(false);
     const [aiProcessing, setAiProcessing] = useState(false);
     const [isWaitingForMicrophone, setIsWaitingForMicrophone] = useState(false);
-    const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
     const [aiExtractedExpenses, setAiExtractedExpenses] = useState<AIExpense[]>([]);
+    const transcriptRef = useRef<string>("");
 
     const categories = useQuery(api.expenses.getCategories);
     const createExpense = useMutation(api.expenses.createExpense);
     const updateExpense = useMutation(api.expenses.updateExpense);
-    const processVoice = useAction(api.ai.processVoiceExpense);
+    const processTranscriptAction = useAction(api.ai.processTranscript);
     const createMultipleExpenses = useMutation(api.expenses.createMultipleExpenses);
 
     const isEditing = !!editingExpense;
@@ -98,12 +100,19 @@ export function AddExpenseModal({
     const handleClose = () => {
         resetForm();
         setAiExtractedExpenses([]);
-        if (mediaRecorder && mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop();
+        if (isRecording) {
+            if (Capacitor.isNativePlatform()) {
+                SpeechRecognition.stop().catch(console.error);
+                SpeechRecognition.removeAllListeners().catch(console.error);
+            } else {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const w = window as any;
+                if (w._webRecognition) {
+                    w._webRecognition.stop();
+                }
+            }
         }
-        if (mediaStream) {
-            mediaStream.getTracks().forEach((track) => track.stop());
-        }
+        transcriptRef.current = "";
         setIsRecording(false);
         setAiProcessing(false);
         setIsWaitingForMicrophone(false);
@@ -158,77 +167,166 @@ export function AddExpenseModal({
     // --- Voice processing logic ---
     const startRecording = async () => {
         try {
-            console.log("Add with voice button clicked. Requesting microphone...");
+            console.log("Add with voice button clicked. Requesting speech access...");
             setIsWaitingForMicrophone(true);
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert("Your browser does not support audio recording. Are you using a secure context (HTTPS/localhost)?");
+            isRecordingRef.current = true; // Set intent early for pointerUp check
+
+            if (Capacitor.isNativePlatform()) {
+                const available = await SpeechRecognition.available();
+                if (!available.available) {
+                    alert("Speech recognition is not available on this device.");
+                    setIsWaitingForMicrophone(false);
+                    return;
+                }
+                const permissionStatus = await SpeechRecognition.checkPermissions();
+                if (permissionStatus.speechRecognition !== 'granted') {
+                    const requested = await SpeechRecognition.requestPermissions();
+                    if (requested.speechRecognition !== 'granted') {
+                        alert("Speech recognition permission denied.");
+                        setIsWaitingForMicrophone(false);
+                        return;
+                    }
+                }
+
                 setIsWaitingForMicrophone(false);
-                return;
+                transcriptRef.current = "";
+                // Remove any old listeners just in case
+                await SpeechRecognition.removeAllListeners();
+
+                // Setup listener for partial results
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await SpeechRecognition.addListener('partialResults', (data: any) => {
+                    if (data.matches && data.matches.length > 0) {
+                        transcriptRef.current = data.matches[0];
+                    }
+                });
+
+                // Start native speech recognition with partialResults = true
+                await SpeechRecognition.start({
+                    language: "en-US",
+                    maxResults: 1,
+                    popup: false,
+                    partialResults: true
+                });
+
+                if (!isRecordingRef.current) {
+                    await SpeechRecognition.stop();
+                    setIsWaitingForMicrophone(false);
+                    return;
+                }
+
+                setIsRecording(true);
+
+            } else {
+                // Web fallback
+                setIsWaitingForMicrophone(false);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const w = window as any;
+                const SpeechRecognitionObj = w.SpeechRecognition || w.webkitSpeechRecognition;
+                if (!SpeechRecognitionObj) {
+                    alert("Speech recognition not supported in this browser. Please use a native device.");
+                    return;
+                }
+
+                const recognition = new SpeechRecognitionObj();
+                recognition.lang = "en-US";
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                recognition.onstart = () => setIsRecording(true);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                recognition.onresult = (event: any) => {
+                    const transcript = event.results[0][0].transcript;
+                    transcriptRef.current = transcript;
+                };
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                recognition.onerror = (event: any) => {
+                    setIsRecording(false);
+                    if (event.error !== 'no-speech') {
+                        console.error("Web Speech Error:", event.error);
+                        alert("Speech recognition failed: " + event.error);
+                    }
+                };
+                recognition.onend = () => {
+                    if (!isRecordingRef.current) return;
+                    setIsRecording(false);
+                    if (transcriptRef.current) {
+                        handleTranscriptSubmission(transcriptRef.current);
+                        transcriptRef.current = "";
+                    } else {
+                        alert("Could not hear any speech. Please try again.");
+                    }
+                };
+
+                // Store recognition instance so we can stop it if needed
+                w._webRecognition = recognition;
+                recognition.start();
+
+                if (!isRecordingRef.current) {
+                    recognition.stop();
+                    setIsWaitingForMicrophone(false);
+                    return;
+                }
             }
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            setIsWaitingForMicrophone(false);
-            setMediaStream(stream);
-
-            let mimeType = 'audio/webm';
-            let options: MediaRecorderOptions = {};
-            if (MediaRecorder.isTypeSupported('audio/webm')) {
-                mimeType = 'audio/webm';
-                options = { mimeType };
-            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                mimeType = 'audio/mp4';
-                options = { mimeType };
-            }
-
-            const recorder = new MediaRecorder(stream, options);
-            const chunks: Blob[] = [];
-
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) chunks.push(e.data);
-            };
-
-            recorder.onstop = () => {
-                const blob = new Blob(chunks, { type: mimeType });
-                stream.getTracks().forEach((track) => track.stop());
-                setMediaStream(null);
-                handleAudioSubmission(blob);
-            };
-
-            recorder.start();
-            setMediaRecorder(recorder);
-            setIsRecording(true);
         } catch (err: unknown) {
             setIsWaitingForMicrophone(false);
-            console.error("Could not start recording:", err);
-            alert("Could not access microphone: " + ((err as Error).message || "Unknown error"));
-        }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorder && mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop();
             setIsRecording(false);
+            isRecordingRef.current = false;
+            console.error("Could not start recording:", err);
+            alert("Could not access speech recognition: " + ((err as Error).message || "Unknown error"));
         }
     };
 
-    const handleAudioSubmission = (blob: Blob) => {
-        setAiProcessing(true);
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = async () => {
-            const base64data = reader.result as string;
-            try {
-                const expenses = await processVoice({
-                    audioBase64: base64data,
-                    mimeType: blob.type || 'audio/webm',
-                });
-                setAiExtractedExpenses(expenses.map((e: Omit<AIExpense, "id">, i: number) => ({ ...e, id: `ai-${Date.now()}-${i}` })));
-            } catch (error: unknown) {
-                console.error("AI processing failed", error);
-                alert((error as Error).message || "Failed to process audio.");
-            } finally {
-                setAiProcessing(false);
+    const stopRecording = async () => {
+        if (!isRecordingRef.current) return;
+        isRecordingRef.current = false;
+        setIsRecording(false);
+
+        try {
+            if (Capacitor.isNativePlatform()) {
+                await SpeechRecognition.stop();
+                await SpeechRecognition.removeAllListeners();
+                if (transcriptRef.current) {
+                    handleTranscriptSubmission(transcriptRef.current);
+                } else {
+                    alert("Could not hear any speech. Please try again.");
+                }
+                transcriptRef.current = "";
+            } else {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const w = window as any;
+                if (w._webRecognition) {
+                    w._webRecognition.stop();
+                }
             }
-        };
+        } catch (err) {
+            console.error("Failed to stop recording:", err);
+        }
+    };
+
+    const handleTranscriptSubmission = async (transcript: string) => {
+        setAiProcessing(true);
+        try {
+            const result = await processTranscriptAction({ transcript });
+            if (result.expenses.length === 1) {
+                const e = result.expenses[0];
+                setAmount(e.amount.toString());
+                setDescription(e.description);
+                setCategory(e.category);
+                if (e.date) {
+                    setDate(new Date(e.date));
+                }
+            } else if (result.expenses.length > 1) {
+                setAiExtractedExpenses(result.expenses.map((e: Omit<AIExpense, "id">, i: number) => ({ ...e, id: `ai-${Date.now()}-${i}` })));
+            } else {
+                alert("Could not extract any expenses from your speech.");
+            }
+        } catch (error: unknown) {
+            console.error("AI processing failed", error);
+            alert((error as Error).message || "Failed to process speech.");
+        } finally {
+            setAiProcessing(false);
+        }
     };
 
     const handleConfirmAIExpenses = async () => {
@@ -264,7 +362,10 @@ export function AddExpenseModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="max-w-md mx-auto bg-white rounded-otter shadow-soft border-0 p-0 overflow-hidden">
+            <DialogContent
+                className="max-w-md mx-auto bg-white rounded-otter shadow-soft border-0 p-0 overflow-hidden"
+                aria-describedby="dialog-desc"
+            >
                 <DialogHeader className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex flex-row items-center justify-between">
                     <DialogTitle className="text-xl font-bold font-quicksand text-gray-800">
                         {aiProcessing
@@ -390,8 +491,20 @@ export function AddExpenseModal({
                                             type="button"
                                             disabled={isWaitingForMicrophone}
                                             whileTap={{ scale: 0.95 }}
-                                            onClick={isRecording ? stopRecording : startRecording}
-                                            className={`relative overflow-hidden group flex items-center justify-center gap-2 w-full py-3 rounded-2xl transition-all duration-300 ${isRecording
+                                            onPointerDown={(e) => {
+                                                e.preventDefault();
+                                                startRecording();
+                                            }}
+                                            onPointerUp={(e) => {
+                                                e.preventDefault();
+                                                stopRecording();
+                                            }}
+                                            onPointerOut={(e) => {
+                                                e.preventDefault();
+                                                stopRecording();
+                                            }}
+                                            onContextMenu={(e) => e.preventDefault()}
+                                            className={`relative overflow-hidden group flex items-center justify-center gap-2 w-full py-3 rounded-2xl transition-all duration-300 touch-none select-none ${isRecording
                                                 ? "bg-red-50 text-red-600 border border-red-200 shadow-inner"
                                                 : "bg-gradient-to-r from-otter-fresh/10 to-otter-blue/10 text-otter-blue hover:from-otter-fresh/20 hover:to-otter-blue/20 border border-otter-blue/10 shadow-sm"
                                                 } ${isWaitingForMicrophone ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -399,15 +512,15 @@ export function AddExpenseModal({
                                             {isRecording ? (
                                                 <>
                                                     <span className="absolute inset-0 bg-red-500/10 animate-pulse" />
-                                                    <Square className="w-5 h-5 fill-current" />
-                                                    <span className="font-bold relative z-10 font-quicksand">Stop Recording</span>
+                                                    <Loader2 className="w-5 h-5 fill-current animate-spin" />
+                                                    <span className="font-bold relative z-10 font-quicksand">Release to stop...</span>
                                                 </>
                                             ) : (
                                                 <>
                                                     <Sparkles className="w-4 h-4 absolute top-2 right-2 text-otter-blue/40" />
                                                     {isWaitingForMicrophone ? <Loader2 className="w-5 h-5 animate-spin" /> : <Mic className="w-5 h-5" />}
                                                     <span className="font-bold font-quicksand">
-                                                        {isWaitingForMicrophone ? "Requesting Mic..." : "Add with Voice"}
+                                                        {isWaitingForMicrophone ? "Requesting Mic..." : "Hold to Talk"}
                                                     </span>
                                                 </>
                                             )}

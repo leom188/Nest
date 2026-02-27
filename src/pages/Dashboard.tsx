@@ -209,7 +209,7 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace }:
 
             {/* Floating Action Button for Adding Expense */}
             {/* Floating Action Button for Adding Expense */}
-            <div className="fixed bottom-24 left-0 right-0 z-40 pointer-events-none safe-x">
+            <div className="fixed fab-container left-0 right-0 z-40 pointer-events-none safe-x">
                 <div className="max-w-md mx-auto relative w-full px-4">
                     <button
                         onClick={() => openAddExpenseModal()}

@@ -167,3 +167,8 @@ h6 {
 .bottom-nav {
   padding-bottom: calc(var(--safe-area-inset-bottom) + 0.5rem);
 }
+
+/* Floating Action Button safe area */
+.fab-container {
+  bottom: calc(5rem + var(--safe-area-inset-bottom, 0px));
+}

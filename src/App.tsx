@@ -5,6 +5,10 @@ import { AuthProvider } from "./components/auth/AuthProvider";
 import { useQuery, useConvexAuth } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
+import { StatusBar, Style } from "@capacitor/status-bar";
+import { SplashScreen } from "@capacitor/splash-screen";
 import { Dashboard } from "./pages/Dashboard";
 import { PlanSelection } from "./pages/Onboarding/PlanSelection";
 import { WorkspaceSetup } from "./pages/Onboarding/WorkspaceSetup";
@@ -117,6 +121,13 @@ function AppContent() {
 }
 
 export function App() {
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      SplashScreen.hide().catch(console.error);
+      StatusBar.setStyle({ style: Style.Dark }).catch(console.error);
+    }
+  }, []);
+
   return (
     <Router>
       <AuthProvider>
