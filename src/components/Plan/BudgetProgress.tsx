@@ -7,10 +7,11 @@ interface BudgetProgressProps {
     category: string;
     spent: number;
     limit: number;
+    emoji: string;
     onEdit: () => void;
 }
 
-export function BudgetProgress({ category, spent, limit, onEdit }: BudgetProgressProps) {
+export function BudgetProgress({ category, spent, limit, emoji, onEdit }: BudgetProgressProps) {
     const percentage = Math.max(0, Math.min((spent / limit) * 100, 100));
     const isOver = spent > limit;
 
@@ -29,13 +30,6 @@ export function BudgetProgress({ category, spent, limit, onEdit }: BudgetProgres
     const colorClass = isOver ? "text-red-500 bg-red-500" : getColor(category);
     // Split text and bg for detailed usage
     const bgClass = colorClass.split(" ")[1];
-
-    // Determine emoji
-    const emoji = category === "Food" ? "🍔" :
-        category === "Transport" ? "🚗" :
-            category === "Shopping" ? "🛍️" :
-                category === "Utilities" ? "💡" :
-                    category === "Rent" ? "🏠" : "💸";
 
     return (
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-3">

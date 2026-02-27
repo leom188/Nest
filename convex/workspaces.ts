@@ -343,7 +343,26 @@ export const getWorkspaceStats = query({
       .collect();
 
     const monthlyExpenses = allExpenses.filter(e => e.date >= startOfMonth);
-    const totalSpent = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
+    let totalSpent = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+    // Add recurring expenses to the total
+    // NOTE: This assumes recurring expenses are "Committed Spend" that should be visible immediately.
+    // Ideally, we would detect if a transaction matching the recurring rule has already been logged to avoid double counting.
+    const recurringExpenses = await ctx.db
+      .query("recurring_expenses")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+      .collect();
+
+    let recurringTotal = 0;
+    for (const expense of recurringExpenses) {
+      if (expense.interval === "monthly") {
+        recurringTotal += expense.amount;
+      } else if (expense.interval === "yearly") {
+        recurringTotal += expense.amount / 12;
+      }
+    }
+
+    totalSpent += recurringTotal;
 
     // LOGIC FOR JOINT MODE
     let budgetRemaining = 0;

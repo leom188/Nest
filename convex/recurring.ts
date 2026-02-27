@@ -24,6 +24,7 @@ export const addRecurring = mutation({
         amount: v.number(),
         category: v.string(),
         interval: v.union(v.literal("monthly"), v.literal("yearly")),
+        dayOfMonth: v.optional(v.number()),
         nextDue: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
@@ -38,6 +39,7 @@ export const addRecurring = mutation({
             amount: args.amount,
             category: args.category,
             interval: args.interval,
+            dayOfMonth: args.dayOfMonth,
             nextDue: args.nextDue,
         });
     },

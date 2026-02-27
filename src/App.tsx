@@ -107,7 +107,7 @@ function AppContent() {
       >
         <Route path="/" element={defaultWorkspaceId ? <Dashboard workspaceId={defaultWorkspaceId} /> : null} />
         <Route path="/insights" element={<Insights />} />
-        <Route path="/plan" element={<Plan />} />
+        <Route path="/plan" element={defaultWorkspaceId ? <Plan workspaceId={defaultWorkspaceId} /> : null} />
         <Route path="/menu" element={<Menu />} />
       </Route>
 

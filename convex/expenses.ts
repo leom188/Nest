@@ -51,6 +51,61 @@ export const createExpense = mutation({
     },
 });
 
+export const createMultipleExpenses = mutation({
+    args: {
+        workspaceId: v.id("workspaces"),
+        expenses: v.array(v.object({
+            amount: v.number(),
+            description: v.string(),
+            category: v.string(),
+            date: v.number(),
+            isRecurring: v.boolean(),
+            recurrenceRule: v.optional(v.string()),
+            splitDetails: v.optional(v.record(v.id("users"), v.number())),
+        }))
+    },
+    handler: async (ctx, args) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) {
+            throw new Error("Unauthorized");
+        }
+
+        const user = await ctx.db.get(userId);
+        if (!user) {
+            throw new Error("User not found");
+        }
+
+        const membership = await ctx.db
+            .query("members")
+            .withIndex("by_workspaceId_and_userId", (q) =>
+                q.eq("workspaceId", args.workspaceId).eq("userId", user._id)
+            )
+            .first();
+
+        if (!membership) {
+            throw new Error("You are not a member of this workspace");
+        }
+
+        const expenseIds = [];
+        for (const exp of args.expenses) {
+            const expenseId = await ctx.db.insert("expenses", {
+                workspaceId: args.workspaceId,
+                paidBy: user._id,
+                amount: exp.amount,
+                description: exp.description,
+                category: exp.category,
+                date: exp.date,
+                isRecurring: exp.isRecurring,
+                recurrenceRule: exp.recurrenceRule,
+                splitDetails: exp.splitDetails,
+            });
+            expenseIds.push(expenseId);
+        }
+
+        return { expenseIds };
+    },
+});
+
 export const getExpensesForWorkspace = query({
     args: {
         workspaceId: v.id("workspaces"),

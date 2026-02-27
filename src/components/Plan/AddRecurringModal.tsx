@@ -29,6 +29,7 @@ export function AddRecurringModal({
     const [amount, setAmount] = useState("");
     const [category, setCategory] = useState("");
     const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
+    const [dayOfMonth, setDayOfMonth] = useState("1");
     const [isLoading, setIsLoading] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -44,6 +45,7 @@ export function AddRecurringModal({
                 amount: amountValue,
                 category,
                 interval,
+                dayOfMonth: parseInt(dayOfMonth),
             });
             onClose();
             // Reset form
@@ -51,6 +53,7 @@ export function AddRecurringModal({
             setAmount("");
             setCategory("");
             setInterval("monthly");
+            setDayOfMonth("1");
         } catch (error) {
             console.error("Failed to add recurring expense:", error);
         } finally {
@@ -139,6 +142,22 @@ export function AddRecurringModal({
                                             <SelectItem key={cat.id} value={cat.name}>
                                                 <span className="mr-2">{cat.emoji}</span>
                                                 {cat.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Day of Month (Estimated Due Date)</Label>
+                                <Select value={dayOfMonth} onValueChange={setDayOfMonth}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-60">
+                                        {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                                            <SelectItem key={day} value={day.toString()}>
+                                                {day}{day === 1 ? "st" : day === 2 ? "nd" : day === 3 ? "rd" : "th"}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

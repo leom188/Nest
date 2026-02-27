@@ -7,7 +7,7 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { Plus } from "lucide-react";
 import { BudgetProgress } from "./BudgetProgress";
 import { SetCategoryBudgetModal } from "./SetCategoryBudgetModal";
-import { SetTotalBudgetModal } from "./SetTotalBudgetModal";
+
 import { Button } from "../ui/button";
 
 interface BudgetTabProps {
@@ -23,7 +23,6 @@ export function BudgetTab({ workspaceId }: BudgetTabProps) {
     const workspaceStats = useQuery(api.workspaces.getWorkspaceStats, { workspaceId });
 
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-    const [isTotalModalOpen, setIsTotalModalOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<{ category: string; limit: number } | undefined>(undefined);
 
     const handleEditCategory = (category: string, limit: number) => {
@@ -42,21 +41,23 @@ export function BudgetTab({ workspaceId }: BudgetTabProps) {
 
     // Logic to determine if Total Budget card should be shown
     // Show for Personal and Joint. Hide for Split.
-    const showTotalBudget = workspaceFn.type !== "split";
+    // const showTotalBudget = workspaceFn.type !== "split"; // REMOVED
 
-    const totalBudget = workspaceBudgetFn.monthlyBudget;
-    const totalSpent = workspaceStats.totalSpent;
+    // const totalBudget = workspaceBudgetFn.monthlyBudget;
+    // const totalSpent = workspaceStats.totalSpent;
 
     // Merge spending and budgets for categories
     const budgetMap = new Map(budgets.map((b) => [b.category, b.limit]));
     const spendingMap = new Map(spending.map((s) => [s.name, s.amount]));
 
     const allCategories = new Set([...budgetMap.keys(), ...spendingMap.keys()]);
+    const emojiMap = new Map(categories.map((c: any) => [c.name, c.emoji]));
 
     const items = Array.from(allCategories).map((catName) => ({
         category: catName,
         limit: budgetMap.get(catName) || 0,
         spent: spendingMap.get(catName) || 0,
+        emoji: emojiMap.get(catName) || "💸",
     })).sort((a, b) => {
         const aPercent = a.limit > 0 ? a.spent / a.limit : (a.spent > 0 ? 1000 : 0);
         const bPercent = b.limit > 0 ? b.spent / b.limit : (b.spent > 0 ? 1000 : 0);
@@ -68,49 +69,7 @@ export function BudgetTab({ workspaceId }: BudgetTabProps) {
 
     return (
         <div className="pb-24">
-            {/* Total Budget Card */}
-            {showTotalBudget && (
-                <div className="mb-8">
-                    <div className="flex items-center justify-between mb-3">
-                        <div>
-                            <h2 className="text-xl font-bold font-quicksand text-gray-800">Total Budget</h2>
-                            <p className="text-sm text-gray-400 font-nunito">Overall monthly limit</p>
-                        </div>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setIsTotalModalOpen(true)}
-                            className="text-otter-blue hover:bg-otter-blue/10"
-                        >
-                            {totalBudget > 0 ? "Edit" : "Set Limit"}
-                        </Button>
-                    </div>
 
-                    <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xl shadow-gray-200/50 flex flex-col gap-6">
-                        <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-16 h-16 bg-otter-gold/10 rounded-2xl flex items-center justify-center text-4xl">
-                                    💰
-                                </div>
-                                <div>
-                                    <h3 className="text-3xl font-bold font-quicksand text-gray-800">
-                                        ${totalBudget.toFixed(0)}
-                                    </h3>
-                                    <p className="text-gray-400 font-nunito text-sm">Monthly Pot</p>
-                                </div>
-                            </div>
-
-                            <div className="text-right">
-                                <p className="text-gray-800 font-bold font-quicksand text-lg">
-                                    -${totalSpent.toFixed(0)}
-                                </p>
-                                <p className="text-xs text-otter-pink font-bold uppercase tracking-wide">Spent</p>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-            )}
 
             <div className="flex items-center justify-between mb-4 mt-8">
                 <div>
@@ -131,6 +90,7 @@ export function BudgetTab({ workspaceId }: BudgetTabProps) {
                             category={item.category}
                             limit={item.limit}
                             spent={item.spent}
+                            emoji={item.emoji}
                             onEdit={() => handleEditCategory(item.category, item.limit)}
                         />
                     ))}
@@ -151,6 +111,7 @@ export function BudgetTab({ workspaceId }: BudgetTabProps) {
                                 category={item.category}
                                 limit={0}
                                 spent={item.spent}
+                                emoji={item.emoji}
                                 onEdit={() => handleEditCategory(item.category, 0)}
                             />
                         ))}
@@ -166,12 +127,7 @@ export function BudgetTab({ workspaceId }: BudgetTabProps) {
                 initialLimit={editingCategory?.limit}
             />
 
-            <SetTotalBudgetModal
-                workspaceId={workspaceId}
-                isOpen={isTotalModalOpen}
-                onClose={() => setIsTotalModalOpen(false)}
-                currentBudget={totalBudget}
-            />
+
         </div>
     );
 }

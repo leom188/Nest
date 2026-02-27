@@ -57,9 +57,41 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace }:
         workspaceId,
     });
 
+    const budgets = useQuery(api.budgets.getBudgets, { workspaceId });
+    const recurring = useQuery(api.recurring.getRecurring, { workspaceId });
+
+    // Calculate dynamic budget strategy (Matching Plan.tsx logic):
+    const budgetMap = new Map<string, number>();
+    budgets?.forEach(b => {
+        budgetMap.set(b.category, b.limit);
+    });
+
+    const recurringMap = new Map<string, number>();
+    recurring?.forEach(r => {
+        const amount = r.interval === "yearly" ? r.amount / 12 : r.amount;
+        const current = recurringMap.get(r.category) || 0;
+        recurringMap.set(r.category, current + amount);
+    });
+
+    const allCategories = new Set([...budgetMap.keys(), ...recurringMap.keys()]);
+
+    let totalPlannedBudget = 0;
+    allCategories.forEach(cat => {
+        const allocated = budgetMap.get(cat) || 0;
+        const recurringSum = recurringMap.get(cat) || 0;
+
+        // Use allocation if set (> 0), otherwise use recurring sum
+        if (allocated > 0) {
+            totalPlannedBudget += allocated;
+        } else {
+            totalPlannedBudget += recurringSum;
+        }
+    });
+
     const totalThisMonth = stats?.totalSpent || 0;
     const expenseCount = expenses?.length || 0;
-    const budget = workspace?.monthlyBudget || 0;
+    // Use dynamic calculations. Default to 0 while loading to avoid showing stale DB data (like $5000)
+    const budget = (budgets && recurring) ? totalPlannedBudget : 0;
 
     useEffect(() => {
         if (location.state?.openExpenseModal) {
@@ -144,7 +176,7 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace }:
 
                     {workspace.type === "joint" && (
                         <JointHeroContent
-                            budget={workspace.monthlyBudget || workspace.monthlyTarget || 0}
+                            budget={budget}
                             spent={totalThisMonth}
                         />
                     )}

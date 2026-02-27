@@ -112,6 +112,7 @@ export default defineSchema({
     amount: v.number(),
     category: v.string(),
     interval: v.union(v.literal("monthly"), v.literal("yearly")),
+    dayOfMonth: v.optional(v.number()),
     lastProcessed: v.optional(v.number()),
     nextDue: v.optional(v.number()),
   })
