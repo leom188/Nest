@@ -62,8 +62,8 @@ export function Menu() {
     }
 
     return (
-        <div className="flex flex-col h-full pb-20">
-            <h1 className="text-2xl font-bold font-quicksand text-gray-800 mb-6 px-4 pt-4">Menu</h1>
+        <div className="flex flex-col h-full pb-20 safe-top pt-8">
+            <h1 className="text-2xl font-bold font-quicksand text-gray-800 mb-6 px-4">Menu</h1>
 
             <div className="px-4 space-y-4">
                 {menuItems.map((item, index) => (
@@ -125,8 +125,8 @@ function WorkspaceSettingsView({ workspace, user, onBack, onUpdate }: any) {
     const isPremium = user?.subscriptionTier === "premium";
 
     return (
-        <div className="flex flex-col h-full pb-20">
-            <div className="px-4 pt-4 mb-6 flex items-center gap-2">
+        <div className="flex flex-col h-full pb-20 safe-top pt-4">
+            <div className="px-4 mb-6 flex items-center gap-2">
                 <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full">
                     <ChevronLeft className="w-6 h-6 text-gray-600" />
                 </button>

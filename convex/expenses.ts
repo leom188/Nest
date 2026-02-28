@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { api } from "./_generated/api";
 
 export const createExpense = mutation({
     args: {
@@ -46,6 +47,39 @@ export const createExpense = mutation({
             recurrenceRule: args.recurrenceRule,
             splitDetails: args.splitDetails,
         });
+
+        // --- Smart Refresh: mark AI summary stale if this is a significant expense ---
+        try {
+            // Condition 1: single expense > 20% of total monthly budget
+            const budgets = await ctx.db
+                .query("category_budgets")
+                .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+                .collect();
+            const totalBudget = budgets.reduce((sum, b) => sum + b.limit, 0);
+            const isLargeExpense = totalBudget > 0 && args.amount >= totalBudget * 0.2;
+
+            // Condition 2: category now exceeds its spending limit
+            const categoryBudget = budgets.find((b) => b.category === args.category);
+            let isCategoryOverBudget = false;
+            if (categoryBudget) {
+                const now = new Date();
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+                const allExpenses = await ctx.db
+                    .query("expenses")
+                    .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+                    .collect();
+                const categoryTotal = allExpenses
+                    .filter((e) => e.category === args.category && e.date >= startOfMonth)
+                    .reduce((sum, e) => sum + e.amount, 0);
+                isCategoryOverBudget = categoryTotal >= categoryBudget.limit;
+            }
+
+            if (isLargeExpense || isCategoryOverBudget) {
+                await ctx.runMutation(api.ai.markSummaryStale, { workspaceId: args.workspaceId });
+            }
+        } catch {
+            // Never block expense creation due to AI summary logic
+        }
 
         return { expenseId };
     },
@@ -352,8 +386,10 @@ export const getSpendingByCategory = query({
         }
 
         const now = new Date();
+        // When called from the frontend, startDate/endDate are computed in the user's local
+        // timezone (browser midnight). If called server-side without args, fall back to UTC month.
         const startOfMonth = args.startDate ?? new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-        const endOfMonth = args.endDate ?? new Date(now.getFullYear(), now.getMonth() + 1, 0).getTime();
+        const endOfMonth = args.endDate ?? new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime() - 1;
 
         const expenses = await ctx.db
             .query("expenses")
@@ -588,12 +624,12 @@ export const getSpendingTrend = query({
 
         for (let i = numMonths - 1; i >= 0; i--) {
             const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const nextMonthDate = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+            const nextMonthDate = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
             const startOfMonth = monthDate.getTime();
-            const endOfMonth = nextMonthDate.getTime();
+            const startOfNext = nextMonthDate.getTime();
 
             const monthExpenses = expenses.filter(
-                (e) => e.date >= startOfMonth && e.date <= endOfMonth
+                (e) => e.date >= startOfMonth && e.date < startOfNext
             );
 
             const total = monthExpenses.reduce((sum, e) => sum + e.amount, 0);

@@ -117,5 +117,15 @@ export default defineSchema({
     nextDue: v.optional(v.number()),
   })
     .index("by_workspaceId", ["workspaceId"]),
+
+  ai_summaries: defineTable({
+    workspaceId: v.id("workspaces"),
+    summary: v.string(),
+    generatedAt: v.number(),
+    dayKey: v.string(), // "2026-02-27" — one per workspace per day
+    stale: v.optional(v.boolean()), // true = regenerate on next visit
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_dayKey", ["workspaceId", "dayKey"]),
 });
 

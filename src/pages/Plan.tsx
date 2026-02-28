@@ -5,8 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { motion } from "framer-motion";
-import { ChevronLeft, Pencil } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Pencil, Lock } from "lucide-react";
 import { SetBudgetModal } from "../components/ui/SetBudgetModal";
 import { SetIncomeModal } from "../components/Plan/SetIncomeModal";
 import { BudgetTab } from "../components/Plan/BudgetTab";
@@ -18,13 +17,9 @@ interface PlanProps {
 }
 
 export function Plan({ workspaceId }: PlanProps) {
-    const navigate = useNavigate();
     const [showBudgetModal, setShowBudgetModal] = useState(false);
     const [showIncomeModal, setShowIncomeModal] = useState(false);
 
-    // If workspaceId is not passed from props (e.g. initial load logic from old Plan.tsx), fetch it
-    // But since App.tsx passes it now, we rely on props.
-    // However, to be safe and robust if called without props (though it shouldn't be):
     const workspaces = useQuery(api.workspaces.getWorkspacesForUser);
     const activeWorkspaceId = workspaceId || workspaces?.[0]?._id;
 
@@ -32,11 +27,11 @@ export function Plan({ workspaceId }: PlanProps) {
     const budgetFn = useQuery(api.budgets.getBudgets, activeWorkspaceId ? { workspaceId: activeWorkspaceId } : "skip");
     const recurringFn = useQuery(api.recurring.getRecurring, activeWorkspaceId ? { workspaceId: activeWorkspaceId } : "skip");
 
-    // Calculate dynamic budget strategy:
-    // 1. If a category has a set Budget (Allocations), use that as the total plan for that category.
-    // 2. If a category has NO set Budget, but has Recurring Expenses, use the sum of those expenses.
-    // This prevents double counting (e.g. Rent budget $2000 + Rent recurring $2000 should = $2000, not $4000)
+    const isPremium = user?.subscriptionTier === "premium";
 
+    // Calculate dynamic budget strategy:
+    // 1. If a category has a set Budget (Allocations), use that.
+    // 2. If a category has NO set Budget, but has Recurring Expenses, use the sum of those.
     const budgetMap = new Map<string, number>();
     budgetFn?.forEach(b => {
         budgetMap.set(b.category, b.limit);
@@ -55,9 +50,6 @@ export function Plan({ workspaceId }: PlanProps) {
     allCategories.forEach(cat => {
         const allocated = budgetMap.get(cat) || 0;
         const recurring = recurringMap.get(cat) || 0;
-
-        // Use allocation if set (> 0), otherwise use recurring sum
-        // If both are 0, adds 0.
         if (allocated > 0) {
             totalBudget += allocated;
         } else {
@@ -65,110 +57,137 @@ export function Plan({ workspaceId }: PlanProps) {
         }
     });
 
-    // "Cost to Be Me"
     const budget = totalBudget;
     const income = user?.income ?? 0;
-
-    // Percentage for progress bars
     const budgetPercent = income > 0 ? (budget / income) * 100 : 0;
     const monthName = new Date().toLocaleString("default", { month: "long" });
+    const remaining = income - budget;
 
     if (!user || !activeWorkspaceId) {
-        return <div className="min-h-screen bg-otter-white flex items-center justify-center">Loading...</div>;
+        return (
+            <div className="min-h-screen bg-otter-white flex flex-col items-center justify-center">
+                <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
+                <p className="text-gray-400 font-nunito font-semibold">Loading your plan...</p>
+            </div>
+        );
     }
 
     return (
-        <div className="min-h-screen bg-otter-white pb-24">
-            {/* Header Section */}
-            <div className="bg-[#4F46E5] pt-12 pb-32 px-6 relative rounded-b-[40px] shadow-lg shadow-indigo-200/50">
-                <div className="flex items-center justify-between mb-8">
-                    <button
-                        onClick={() => navigate("/")}
-                        className="w-12 h-12 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors backdrop-blur-sm"
-                    >
-                        <ChevronLeft className="w-6 h-6" />
-                    </button>
-                    <h1 className="text-xl font-bold font-quicksand text-white">
-                        Edit Plan
-                    </h1>
-                    <div className="w-12" /> {/* Spacer */}
-                </div>
+        <div className="bg-otter-white">
+            {/* Full-bleed indigo hero header */}
+            <div className="full-bleed bg-[#4F46E5] safe-top">
+                <div className="max-w-md mx-auto px-6 pt-14 pb-16">
+                    {/* Page title */}
+                    <div className="flex items-center justify-between mb-6">
+                        <h1 className="text-lg font-bold font-quicksand text-white/90">
+                            {monthName}'s Plan
+                        </h1>
+                        {isPremium && (
+                            <span className="text-xs font-bold font-nunito text-white/60 bg-white/10 px-3 py-1 rounded-full border border-white/20">
+                                ✦ Premium
+                            </span>
+                        )}
+                    </div>
 
-                <div className="text-center">
-                    <h2 className="text-5xl font-bold font-quicksand text-white mb-2 tracking-tight">
-                        ${budget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </h2>
-                    <p className="text-white/80 font-nunito text-lg font-medium">
-                        Cost to Be Me
-                    </p>
+                    {/* Hero metric */}
+                    {isPremium ? (
+                        <div className="text-center">
+                            <h2 className="text-5xl font-bold font-quicksand text-white mb-1 tabular-nums tracking-tight">
+                                ${budget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </h2>
+                            <p className="text-white/60 font-nunito text-xs font-semibold uppercase tracking-widest">
+                                Cost to Be Me
+                            </p>
+                            {income > 0 && (
+                                <p className={`mt-2 text-sm font-nunito font-bold tabular-nums ${remaining >= 0 ? "text-green-300" : "text-red-300"}`}>
+                                    {remaining >= 0
+                                        ? `$${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} left from income`
+                                        : `$${Math.abs(remaining).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} over income`
+                                    }
+                                </p>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="text-center">
+                            <h2 className="text-5xl font-bold font-quicksand text-white mb-1 tabular-nums tracking-tight">
+                                ${budget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </h2>
+                            <p className="text-white/60 font-nunito text-xs font-semibold uppercase tracking-widest">
+                                Monthly Budget
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Comparison Card */}
-            <div className="px-6 -mt-20 relative z-10">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-white rounded-[32px] shadow-xl shadow-gray-200/60 p-6 space-y-8"
-                >
-                    {/* Targets Section */}
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <span className="font-bold text-gray-500 font-quicksand">
-                                {monthName}'s Targets
-                            </span>
-                            <button
-                                onClick={() => setShowBudgetModal(true)}
-                                className="font-bold text-[#4ade80] font-quicksand hover:opacity-80 transition-opacity"
-                            >
-                                ${budget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </button>
-                        </div>
-                        <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${Math.min(budgetPercent, 100)}%` }}
-                                transition={{ duration: 1, ease: "easeOut" }}
-                                className="h-full bg-gradient-to-r from-[#86EFAC] to-[#4ADE80] rounded-full"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Income Section */}
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span className="font-bold text-gray-500 font-quicksand">
-                                    Monthly Income
+            {/* Summary card — overlaps the hero */}
+            <div className="full-bleed">
+                <div className="max-w-md mx-auto px-4">
+                    <motion.div
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.08, duration: 0.3, ease: "easeOut" }}
+                        className="-mt-10 bg-white rounded-3xl shadow-xl shadow-indigo-100/60 p-6 space-y-6"
+                    >
+                        {/* Targets row */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="font-bold text-gray-500 font-quicksand text-sm">
+                                    Budget Overview
                                 </span>
                                 <button
-                                    onClick={() => setShowIncomeModal(true)}
-                                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                                    onClick={() => setShowBudgetModal(true)}
+                                    className="flex items-center justify-center gap-1.5 font-bold text-[#4ade80] font-quicksand hover:opacity-80 transition-opacity tabular-nums min-h-[44px] px-2 -mr-2"
+                                    aria-label="Edit budget target"
                                 >
-                                    <Pencil className="w-4 h-4" />
+                                    ${budget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    <Pencil className="w-3.5 h-3.5 opacity-60" />
                                 </button>
                             </div>
-                            <span className="font-bold text-gray-800 font-quicksand">
-                                ${income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
+                            <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${Math.min(budgetPercent, 100)}%` }}
+                                    transition={{ duration: 0.8, ease: "easeOut" }}
+                                    className="h-full bg-gradient-to-r from-[#86EFAC] to-[#4ADE80] rounded-full"
+                                />
+                            </div>
                         </div>
-                        <div className="h-5 bg-[#E5E5E5] rounded-full relative overflow-hidden">
-                            {/* Placeholder pattern/texture could go here if needed to look exactly like mockup */}
+
+                        {/* Income row */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold text-gray-500 font-quicksand text-sm">
+                                        Monthly Income
+                                    </span>
+                                    <button
+                                        onClick={() => setShowIncomeModal(true)}
+                                        className="w-11 h-11 -ml-2 -my-2 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+                                        aria-label="Edit monthly income"
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <span className="font-bold text-gray-800 font-quicksand tabular-nums">
+                                    ${income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            </div>
                         </div>
-                    </div>
-                </motion.div>
+                    </motion.div>
+                </div>
             </div>
 
             {/* Budget Allocations */}
-            <div className="p-6">
-                {/* Re-integrate budget categories without the tabs for now, as the prompt focused on the header. 
-                     However, the user likely still needs to manage categories. 
-                     I will include the BudgetTab content (categories) below. */}
+            <div className="px-4 mt-0">
                 <BudgetTab workspaceId={activeWorkspaceId} />
 
-                <div className="mt-8 pt-8 border-t border-gray-100">
-                    <RecurringTab workspaceId={activeWorkspaceId} />
+                <div className="mt-8">
+                    {isPremium ? (
+                        <RecurringTab workspaceId={activeWorkspaceId} />
+                    ) : (
+                        <PremiumRecurringGate />
+                    )}
                 </div>
             </div>
 
@@ -185,6 +204,23 @@ export function Plan({ workspaceId }: PlanProps) {
                 onClose={() => setShowIncomeModal(false)}
                 currentIncome={income}
             />
+        </div>
+    );
+}
+
+function PremiumRecurringGate() {
+    return (
+        <div className="rounded-2xl border-2 border-dashed border-indigo-100 bg-indigo-50/50 p-6 text-center">
+            <div className="w-10 h-10 mx-auto mb-3 rounded-2xl bg-indigo-100 flex items-center justify-center">
+                <Lock className="w-5 h-5 text-indigo-400" />
+            </div>
+            <h3 className="font-bold font-quicksand text-gray-700 mb-1">Recurring Expenses</h3>
+            <p className="text-sm text-gray-400 font-nunito mb-4 text-pretty">
+                Track subscriptions and fixed costs to know your true monthly baseline.
+            </p>
+            <button className="bg-[#4F46E5] text-white text-sm font-bold font-nunito px-6 py-3 min-h-[44px] rounded-xl hover:opacity-90 transition-opacity active:scale-95">
+                Upgrade to Premium
+            </button>
         </div>
     );
 }

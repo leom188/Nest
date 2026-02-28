@@ -27,11 +27,11 @@ export function RecurringTab({ workspaceId }: RecurringTabProps) {
     }, 0);
 
     return (
-        <div className="pb-24">
+        <div>
             {/* Summary Card */}
-            <div className="bg-gradient-to-br from-otter-lavender/10 to-otter-blue/5 rounded-2xl p-6 mb-6 border border-otter-lavender/20">
+            <div className="bg-gradient-to-br from-otter-lavender/10 to-otter-blue/5 rounded-2xl p-6 mb-4 border border-otter-lavender/20">
                 <p className="text-sm font-bold text-otter-lavender uppercase tracking-widest mb-1">
-                    Total Fixed Costs
+                    Fixed Monthly Costs
                 </p>
                 <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-bold font-quicksand text-gray-800">
@@ -41,11 +41,11 @@ export function RecurringTab({ workspaceId }: RecurringTabProps) {
                 </div>
             </div>
 
-            <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold font-quicksand text-gray-800">Subscriptions</h2>
+            <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xl font-bold font-quicksand text-gray-800">Bills & Subscriptions</h2>
                 <Button onClick={() => setIsModalOpen(true)} size="sm" className="bg-otter-blue text-white rounded-xl">
                     <Plus className="w-4 h-4 mr-1" />
-                    Add New
+                    Add Bill
                 </Button>
             </div>
 
@@ -81,9 +81,15 @@ export function RecurringTab({ workspaceId }: RecurringTabProps) {
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100">
-                    <p className="text-gray-500 font-nunito mb-2">No subscriptions added.</p>
-                    <p className="text-sm text-gray-400">Add your regular bills to track fixed costs.</p>
+                <div className="text-center py-6 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100">
+                    <h3 className="font-bold text-gray-700 font-quicksand mb-2">📅 Track your recurring costs</h3>
+                    <p className="text-gray-500 font-nunito mb-4 text-sm text-balance">
+                        Add rent, streaming, gym — anything that repeats monthly or yearly.
+                    </p>
+                    <Button onClick={() => setIsModalOpen(true)} size="sm" className="bg-otter-blue text-white rounded-xl">
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Bill
+                    </Button>
                 </div>
             )}
 

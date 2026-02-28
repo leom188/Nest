@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { Plus } from "lucide-react";
-import { BudgetProgress } from "./BudgetProgress";
+import { BudgetLimitRow } from "./BudgetLimitRow";
 import { SetCategoryBudgetModal } from "./SetCategoryBudgetModal";
 
 import { Button } from "../ui/button";
@@ -68,50 +68,52 @@ export function BudgetTab({ workspaceId }: BudgetTabProps) {
     const noBudgetItems = items.filter(i => i.limit === 0 && i.spent > 0);
 
     return (
-        <div className="pb-24">
+        <div>
 
 
-            <div className="flex items-center justify-between mb-4 mt-8">
-                <div>
-                    <h2 className="text-lg font-bold font-quicksand text-gray-800">Category Allocations</h2>
-                    <p className="text-sm text-gray-400 font-nunito">Breakdown by category</p>
-                </div>
+            <div className="flex items-center justify-between mb-3 mt-4">
+                <h2 className="text-lg font-bold font-quicksand text-gray-800">Spending Limits</h2>
                 <Button onClick={handleAddCategory} size="sm" className="bg-otter-blue text-white rounded-xl">
                     <Plus className="w-4 h-4 mr-1" />
-                    Add Category
+                    Add Limit
                 </Button>
             </div>
 
             {activeBudgets.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-2">
                     {activeBudgets.map((item) => (
-                        <BudgetProgress
+                        <BudgetLimitRow
                             key={item.category}
                             category={item.category}
-                            limit={item.limit}
-                            spent={item.spent}
                             emoji={item.emoji}
+                            limit={item.limit}
                             onEdit={() => handleEditCategory(item.category, item.limit)}
                         />
                     ))}
                 </div>
             ) : (
                 <div className="bg-gray-50 rounded-2xl p-8 text-center border-2 border-dashed border-gray-100 mb-6">
-                    <p className="text-gray-500 font-nunito mb-2">No category budgets set.</p>
+                    <h3 className="font-bold text-gray-700 font-quicksand mb-2">🎯 Set your first spending limit</h3>
+                    <p className="text-gray-500 font-nunito mb-4 text-sm text-balance">
+                        Choose a category and set a monthly limit — we'll track how you're doing.
+                    </p>
+                    <Button onClick={handleAddCategory} size="sm" className="bg-otter-blue text-white rounded-xl">
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Limit
+                    </Button>
                 </div>
             )}
 
             {noBudgetItems.length > 0 && (
-                <div className="mt-8">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Unbudgeted Spending</h3>
-                    <div className="space-y-4">
+                <div className="mt-5">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Other Spending (no limit set)</h3>
+                    <div className="space-y-2">
                         {noBudgetItems.map((item) => (
-                            <BudgetProgress
+                            <BudgetLimitRow
                                 key={item.category}
                                 category={item.category}
-                                limit={0}
-                                spent={item.spent}
                                 emoji={item.emoji}
+                                limit={0}
                                 onEdit={() => handleEditCategory(item.category, 0)}
                             />
                         ))}

@@ -32,7 +32,7 @@ export function BudgetProgress({ category, spent, limit, emoji, onEdit }: Budget
     const bgClass = colorClass.split(" ")[1];
 
     return (
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-3">
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl ${bgClass}/10 flex items-center justify-center`}>

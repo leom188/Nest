@@ -81,11 +81,9 @@ export function SwipeableExpenseCard({ expense, onEdit }: SwipeableExpenseCardPr
             onTap={() => onEdit(expense)}
         >
             <div className="bg-white rounded-otter p-4 flex items-center gap-4 border border-otter-lavender/5 hover:bg-gray-50/50 transition-colors active:scale-[0.99]">
-                <div
-                    className={`w-12 h-12 ${config.color} rounded-2xl flex items-center justify-center text-2xl shadow-inner flex-shrink-0 transition-transform group-active:scale-95`}
-                >
+                <span className="text-2xl w-10 text-center flex-shrink-0">
                     {config.emoji}
-                </div>
+                </span>
                 <div className="flex-1 min-w-0">
                     <p className="font-bold font-quicksand text-gray-800 truncate">
                         {expense.description}
@@ -94,10 +92,14 @@ export function SwipeableExpenseCard({ expense, onEdit }: SwipeableExpenseCardPr
                         <p className="text-xs text-gray-400 font-nunito bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">
                             {dateStr}
                         </p>
-                        <span className="text-[10px] text-gray-300">•</span>
-                        <p className="text-xs text-gray-400 font-nunito truncate max-w-[100px]">
-                            {expense.payer?.name || "Unknown"}
-                        </p>
+                        {expense.payer?.name && (
+                            <>
+                                <span className="text-[10px] text-gray-300">•</span>
+                                <p className="text-xs text-gray-400 font-nunito truncate max-w-[100px]">
+                                    {expense.payer.name}
+                                </p>
+                            </>
+                        )}
                     </div>
                 </div>
                 <p className="text-lg font-bold font-quicksand text-otter-blue flex-shrink-0">

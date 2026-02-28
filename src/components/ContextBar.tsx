@@ -142,7 +142,7 @@ export function ContextBar({
             <div className="bg-white/90 backdrop-blur-xl border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-40 safe-top transition-all duration-200">
                 {/* Left side - Logo and current workspace */}
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 bg-gradient-to-br from-otter-blue to-otter-fresh rounded-2xl flex items-center justify-center shadow-lg shadow-otter-blue/20 flex-shrink-0">
+                    <div className="w-10 h-10 bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20 flex-shrink-0">
                         <img src="/icons/logo.png" alt="Nest Logo" className="w-7 h-7 object-contain" />
                     </div>
                     <div className="min-w-0 flex-1">

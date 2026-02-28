@@ -344,6 +344,7 @@ export const getWorkspaceStats = query({
 
     const monthlyExpenses = allExpenses.filter(e => e.date >= startOfMonth);
     let totalSpent = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const expenseCount = monthlyExpenses.length;
 
     // Add recurring expenses to the total
     // NOTE: This assumes recurring expenses are "Committed Spend" that should be visible immediately.
@@ -445,6 +446,7 @@ export const getWorkspaceStats = query({
       budgetRemaining,
       myBalance, // For Split mode: Amount I am owed (if +) or owe (if -)
       monthlyTarget: workspace.monthlyTarget || 0,
+      expenseCount,
     };
   },
 });

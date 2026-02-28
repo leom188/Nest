@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { ArrowRightLeft, Plus } from "lucide-react";
@@ -37,6 +37,7 @@ interface MemberWithUser {
 export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace }: DashboardProps) {
     const { user } = useAuthStore();
     const { openAddExpenseModal } = useUIStore();
+    const navigate = useNavigate();
     // const [showAddExpense, setShowAddExpense] = useState(false); // Removed
     const [justAddedExpense, setJustAddedExpense] = useState(false);
     const [showCelebration, setShowCelebration] = useState(false);
@@ -48,9 +49,11 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace }:
         workspaceId,
     });
 
+    const PREVIEW_COUNT = 5;
+
     const expenses = useQuery(api.expenses.getExpensesForWorkspace, {
         workspaceId,
-        limit: 50,
+        limit: 10,
     });
 
     const stats = useQuery(api.workspaces.getWorkspaceStats, {
@@ -89,7 +92,7 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace }:
     });
 
     const totalThisMonth = stats?.totalSpent || 0;
-    const expenseCount = expenses?.length || 0;
+    const expenseCount = stats?.expenseCount ?? 0;
     // Use dynamic calculations. Default to 0 while loading to avoid showing stale DB data (like $5000)
     const budget = (budgets && recurring) ? totalPlannedBudget : 0;
 
@@ -178,6 +181,7 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace }:
                         <JointHeroContent
                             budget={budget}
                             spent={totalThisMonth}
+                            expenseCount={expenseCount}
                         />
                     )}
                 </div>
@@ -187,13 +191,21 @@ export function Dashboard({ workspaceId, onWorkspaceSelect, onCreateWorkspace }:
                         <h3 className="text-lg font-bold font-quicksand text-gray-800 mb-3">
                             Recent Expenses
                         </h3>
-                        {expenses.map((expense: Expense) => (
+                        {expenses.slice(0, PREVIEW_COUNT).map((expense: Expense) => (
                             <SwipeableExpenseCard
                                 key={expense._id}
                                 expense={{ ...expense, workspaceId }}
                                 onEdit={handleEditExpense}
                             />
                         ))}
+                        {expenses.length > PREVIEW_COUNT && (
+                            <button
+                                onClick={() => navigate("/insights")}
+                                className="w-full text-center text-sm font-semibold font-nunito text-otter-blue py-3 hover:opacity-70 transition-opacity"
+                            >
+                                See all expenses →
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <ContextualEmptyState
@@ -243,57 +255,53 @@ function PersonalHeroContent({
     budget: number;
     expenseCount: number;
 }) {
-    const totalPercentage = budget > 0 ? Math.min((total / budget) * 100, 100) : 0;
+    const remaining = budget - total;
     const isOverBudget = total > budget && budget > 0;
+    const monthName = new Date().toLocaleString("default", { month: "long" });
 
     return (
-        <div className="bg-gradient-to-br from-otter-blue to-otter-fresh rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+        <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] rounded-3xl p-6 text-white shadow-xl relative overflow-hidden"
+        >
             {/* Background Decoration */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+            <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-2xl" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/3 blur-xl" />
 
             <div className="relative z-10">
-                <div className="flex justify-between items-end mb-4">
+                <p className="text-white/60 font-nunito text-xs font-semibold uppercase tracking-widest mb-1">
+                    {monthName} · {expenseCount} transaction{expenseCount !== 1 ? "s" : ""}
+                </p>
+                <h2 className="text-4xl font-bold font-quicksand tabular-nums tracking-tight mb-3">
+                    ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h2>
+
+                {budget > 0 ? (
                     <div>
-                        <p className="text-otter-blue-100 font-nunito text-sm mb-1">Total Spent</p>
-                        <h3 className="text-3xl font-bold font-quicksand">${total.toFixed(2)}</h3>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-otter-blue-100 font-nunito text-sm mb-1">Monthly Limit</p>
-                        <p className="text-xl font-bold font-quicksand">
-                            {budget > 0 ? `$${budget.toFixed(2)}` : "No Limit"}
+                        <div className="h-2.5 bg-black/20 rounded-full overflow-hidden backdrop-blur-sm mb-2">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.min((total / budget) * 100, 100)}%` }}
+                                transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
+                                className={`h-full rounded-full ${isOverBudget ? "bg-red-400" : "bg-white"}`}
+                            />
+                        </div>
+                        <p className={`text-sm font-bold font-nunito ${isOverBudget ? "text-red-300" : "text-green-300"}`}>
+                            {isOverBudget
+                                ? `$${Math.abs(remaining).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} over budget`
+                                : `$${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} remaining`
+                            }
                         </p>
                     </div>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="h-4 bg-black/20 rounded-full overflow-hidden backdrop-blur-sm">
-                    <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${totalPercentage}%` }}
-                        transition={{ duration: 1, ease: "easeOut" }}
-                        className={`h-full rounded-full ${isOverBudget ? "bg-otter-pink" : "bg-white"}`}
-                    />
-                </div>
-
-                {isOverBudget && (
-                    <p className="text-white/90 font-bold text-sm mt-3 flex items-center gap-1 bg-otter-pink/20 py-1 px-3 rounded-lg w-fit">
-                        ⚠️ Over budget by ${(total - budget).toFixed(2)}
-                    </p>
-                )}
-
-                {!isOverBudget && budget > 0 && (
-                    <p className="text-white/80 text-sm mt-3 font-nunito">
-                        ${(budget - total).toFixed(2)} remaining
-                    </p>
-                )}
-
-                {!budget && (
-                    <p className="text-white/80 text-sm mt-3 font-nunito">
+                ) : (
+                    <p className="text-white/50 text-sm font-nunito mt-3">
                         Tracking {expenseCount} expense{expenseCount !== 1 ? "s" : ""}
                     </p>
                 )}
             </div>
-        </div>
+        </motion.div>
     );
 }
 
@@ -333,54 +341,58 @@ function SplitHeroContent({
 function JointHeroContent({
     budget,
     spent,
+    expenseCount,
 }: {
     budget: number;
     spent: number;
+    expenseCount: number;
 }) {
-    const percentage = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
+    const remaining = budget - spent;
     const isOverBudget = spent > budget && budget > 0;
+    const monthName = new Date().toLocaleString("default", { month: "long" });
 
     return (
-        <div className="bg-gradient-to-br from-otter-blue to-otter-fresh rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+        <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] rounded-3xl p-6 text-white shadow-xl relative overflow-hidden"
+        >
             {/* Background Decoration */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+            <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-2xl" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/3 blur-xl" />
 
             <div className="relative z-10">
-                <div className="flex justify-between items-end mb-4">
+                <p className="text-white/60 font-nunito text-xs font-semibold uppercase tracking-widest mb-1">
+                    {monthName} · {expenseCount} transaction{expenseCount !== 1 ? "s" : ""}
+                </p>
+                <h2 className="text-4xl font-bold font-quicksand tabular-nums tracking-tight mb-3">
+                    ${spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h2>
+
+                {budget > 0 ? (
                     <div>
-                        <p className="text-white/80 font-nunito text-sm mb-1">Total Spent</p>
-                        <h3 className="text-3xl font-bold font-quicksand">${spent.toFixed(2)}</h3>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-white/80 font-nunito text-sm mb-1">Monthly Budget</p>
-                        <p className="text-xl font-bold font-quicksand">
-                            {budget > 0 ? `$${budget.toFixed(2)}` : "No Limit"}
+                        <div className="h-2.5 bg-black/20 rounded-full overflow-hidden backdrop-blur-sm mb-2">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.min((spent / budget) * 100, 100)}%` }}
+                                transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
+                                className={`h-full rounded-full ${isOverBudget ? "bg-red-400" : "bg-white"}`}
+                            />
+                        </div>
+                        <p className={`text-sm font-bold font-nunito ${isOverBudget ? "text-red-300" : "text-green-300"}`}>
+                            {isOverBudget
+                                ? `$${Math.abs(remaining).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} over the pot`
+                                : `$${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} remaining in the pot`
+                            }
                         </p>
                     </div>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="h-4 bg-black/20 rounded-full overflow-hidden backdrop-blur-sm">
-                    <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${percentage}%` }}
-                        transition={{ duration: 1, ease: "easeOut" }}
-                        className={`h-full rounded-full ${isOverBudget ? "bg-otter-pink" : "bg-white"}`}
-                    />
-                </div>
-
-                {isOverBudget && (
-                    <p className="text-white/90 font-bold text-sm mt-3 flex items-center gap-1 bg-otter-pink/20 py-1 px-3 rounded-lg w-fit">
-                        ⚠️ Over budget by ${(spent - budget).toFixed(2)}
-                    </p>
-                )}
-
-                {!isOverBudget && budget > 0 && (
-                    <p className="text-white/80 text-sm mt-3 font-nunito">
-                        ${(budget - spent).toFixed(2)} remaining in the pot
+                ) : (
+                    <p className="text-white/50 text-sm font-nunito mt-3">
+                        Joint tracking active for this Month
                     </p>
                 )}
             </div>
-        </div>
+        </motion.div>
     );
 }

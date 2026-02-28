@@ -110,7 +110,7 @@ function AppContent() {
         }
       >
         <Route path="/" element={defaultWorkspaceId ? <Dashboard workspaceId={defaultWorkspaceId} /> : null} />
-        <Route path="/insights" element={<Insights />} />
+        <Route path="/insights" element={defaultWorkspaceId ? <Insights workspaceId={defaultWorkspaceId} /> : null} />
         <Route path="/plan" element={defaultWorkspaceId ? <Plan workspaceId={defaultWorkspaceId} /> : null} />
         <Route path="/menu" element={<Menu />} />
       </Route>
